@@ -10,30 +10,19 @@ file_path = REPOSITORY_ROOT / 'data' / 'raw' / 'bomb_flight_telemetry.csv'
 print("📡 Parsing DCS Telemetry Data...")
 
 # 1. CLEAN AND LOAD THE DATA
-# The CSV has "--- NEW DROP ---" and headers scattered throughout, plus (as of the
-# updated logger) a DropID column. We support BOTH the new 9-column format
-# (Weapon,DropID,Time,PosX,PosY,PosZ,VelX,VelY,VelZ) and legacy 8-column files
-# (no DropID) by inferring a drop id from the "--- NEW DROP ---" separators instead.
+# The CSV has "--- NEW DROP ---" separators and headers scattered throughout.
 with open(file_path, 'r') as file:
     lines = file.readlines()
 
 clean_data = []
-legacy_drop_id = -1
-has_drop_id_col = None
 for line in lines:
     if '---' in line:
-        legacy_drop_id += 1
         continue
     if 'Weapon_Name' in line:
         continue
     parts = line.strip().split(',')
-    if has_drop_id_col is None:
-        has_drop_id_col = (len(parts) == 9)
-    if has_drop_id_col and len(parts) == 9:
+    if len(parts) == 9:
         clean_data.append(parts)
-    elif not has_drop_id_col and len(parts) == 8:
-        # legacy format: no DropID column in the file, insert the inferred one
-        clean_data.append([parts[0], str(legacy_drop_id)] + parts[1:])
 
 columns = ['Weapon', 'DropID', 'Time', 'PosX', 'PosY_Alt', 'PosZ', 'VelX', 'VelY', 'VelZ']
 df = pd.DataFrame(clean_data, columns=columns)
@@ -44,7 +33,7 @@ for col in columns[2:]:
 df['DropID'] = df['DropID'].astype(int)
 
 print(f"   Loaded {len(df)} rows across {df['DropID'].nunique()} individual drops "
-      f"({'DropID column found' if has_drop_id_col else 'DropID inferred from --- NEW DROP --- markers'})")
+    f"(using DropID from telemetry)")
 
 # 2. PER-DROP PHYSICS PROCESSING
 # CRITICAL: every derivative below is computed *within* a single drop's own telemetry.
