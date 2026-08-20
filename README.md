@@ -214,14 +214,28 @@ This distinction is important: the DCS data calibrates the weapon's observed dra
 
 ## Run the calibration pipeline
 
-From the repository root, with Python 3.11 or newer:
+From the repository root, with Python 3.11 or newer and [uv](https://docs.astral.sh/uv/) installed:
 
 ```bash
-python -m pip install -e .
-python calibration/calibrate_weapon_drag.py
+uv sync
+uv run python calibration/calibrate_weapon_drag.py
 ```
 
 The command overwrites `data/processed/weapon_drag_database.json` and `docs/weapon_drag_database.js` with the latest LUTs. Paths are resolved relative to the script, so the command can be run from any working directory.
+
+The committed `uv.lock` pins the complete Python dependency graph for reproducible calibration runs. Use `uv sync --locked` in CI or when you want to ensure the environment matches the lockfile exactly.
+
+## Validation
+
+Run the project checks locally:
+
+```bash
+uv run python -m unittest discover --start-directory tests --pattern 'test_*.py'
+uv run python calibration/calibrate_weapon_drag.py
+git diff --exit-code -- data/processed/weapon_drag_database.json docs/weapon_drag_database.js
+```
+
+The GitHub Actions validation workflow runs these artifact checks, verifies Python and JavaScript syntax, and confirms that recalibration produces no uncommitted LUT changes. The Pages workflow publishes `docs/` from `main`.
 
 ## Run the targeting computer
 
@@ -240,6 +254,8 @@ Open `docs/index.html` in a browser, or use the [live GitHub Pages calculator](h
 │   ├── index.html                      # GitHub Pages entry point
 │   └── weapon_drag_database.js        # Generated browser data
 ├── .github/workflows/validate.yml
+├── tests/test_artifacts.py
+├── uv.lock
 ├── pyproject.toml
 └── README.md
 ```

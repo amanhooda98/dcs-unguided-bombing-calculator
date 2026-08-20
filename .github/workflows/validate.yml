@@ -4,17 +4,32 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  syntax:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
+          version: "latest"
+      - name: Set up Python and install locked dependencies
+        run: uv sync --locked
       - name: Validate Python syntax
-        run: python -m py_compile calibration/calibrate_weapon_drag.py
+        run: uv run python -m py_compile calibration/calibrate_weapon_drag.py tests/test_artifacts.py
+      - name: Validate project artifacts
+        run: uv run python -m unittest discover --start-directory tests --pattern 'test_*.py'
+      - name: Rebuild calibration artifacts
+        run: uv run python calibration/calibrate_weapon_drag.py
+      - name: Verify generated artifacts are reproducible
+        run: git diff --exit-code -- data/processed/weapon_drag_database.json docs/weapon_drag_database.js
       - name: Validate JavaScript syntax
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check generated JavaScript syntax
         run: node --check docs/weapon_drag_database.js
