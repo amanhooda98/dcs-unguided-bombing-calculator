@@ -40,40 +40,31 @@
 
         /* --- UI BUG FIX: Remove invisible number spinners that eat horizontal padding --- */
         input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; 
-            margin: 0; 
-        }
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
+        input[type=number]::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
+        input[type=number] { -moz-appearance: textfield; }
 
         .input-group { display: flex; align-items: stretch; margin-bottom: 0.5rem; }
         
-        /* --- UI BUG FIX: min-width: 0 allows flex items to shrink without clipping --- */
+        /* Flex setup: input takes all available remaining space (flex: 1), select takes only what it needs */
         .input-group input { flex: 1 1 0%; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
         
-        /* --- ULTRA-COMPACT UNIT SELECTORS --- */
+        /* Dynamic Selectors: width: auto allows native arrow to render safely */
         .input-group select { 
-            -webkit-appearance: none; /* Removes the default dropdown arrow */
-            -moz-appearance: none;
-            appearance: none;
-            text-align: center;
-            text-align-last: center;
-            width: fit-content; /* Shrinks to exact text size */
-            min-width: 42px; 
+            width: auto; 
             flex-shrink: 0; 
             border-top-left-radius: 0; 
             border-bottom-left-radius: 0; 
             background: var(--bg-element); 
-            padding: 0 0.4rem; 
+            padding: 0 0.2rem 0 0.5rem; 
             font-size: 0.85rem; 
             cursor: pointer; 
         }
 
         .unit-toggle { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; border-radius: 6px; }
 
-        .wind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; align-items: start; margin-top: 0.5rem; }
+        /* DYNAMIC GRID FIX: Proportional spacing instead of 1fr 1fr 1fr */
+        /* Altitude and Speed get more room (1.3fr), Wind Dir gets less room (0.6fr) */
+        .wind-row { display: grid; grid-template-columns: 1.3fr 1.3fr 0.6fr; gap: 0.6rem; align-items: start; margin-top: 0.5rem; }
         .wind-header { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: -0.3rem; margin-top: 1rem; }
 
         button { width: 100%; padding: 1.2rem; font-size: 1.1rem; font-weight: 600; background: var(--brand-blue); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; transition: opacity 0.2s; margin-bottom: 2rem; }
@@ -93,19 +84,22 @@
         .briefing p { margin: 0; font-size: 1.05rem; }
         .hl { font-family: ui-monospace, monospace; font-weight: bold; background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem; border-radius: 4px; }
 
-        /* --- AGGRESSIVE MOBILE OVERRIDES --- */
+        /* --- RESPONSIVE MOBILE OVERRIDES --- */
         @media (max-width: 600px) {
             body { padding: 15px 10px; }
             .card { padding: 1.2rem; }
             
-            /* Tightly pack the 3-column grid */
-            .wind-row { gap: 0.3rem; }
+            /* Tightly pack the grid gaps */
+            .wind-row { gap: 0.4rem; }
             
-            /* Shrink horizontal padding inside inputs to prevent cutting off 4-digit numbers */
-            input, select { padding: 0.75rem 0.3rem; font-size: 0.95rem; }
+            /* Reduce internal text box padding slightly to maximize typing room */
+            input, select { padding: 0.75rem 0.4rem; font-size: 0.95rem; }
             
-            /* Shrink unit boxes to absolute minimum */
-            .input-group select { min-width: 36px; padding: 0 0.15rem; font-size: 0.75rem; }
+            /* Allow select to naturally shrink font slightly, but keep arrow */
+            .input-group select { padding: 0 0.1rem 0 0.3rem; font-size: 0.8rem; }
+            
+            /* Center the Wind Dir text since it's in a narrower column now */
+            .wind-row > input { text-align: center; }
             
             .briefing { padding: 1.2rem; }
         }
