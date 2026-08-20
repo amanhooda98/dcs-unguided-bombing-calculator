@@ -1,0 +1,20 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate Python syntax
+        run: python -m py_compile calibration/calibrate_weapon_drag.py
+      - name: Validate JavaScript syntax
+        run: node --check docs/weapon_drag_database.js

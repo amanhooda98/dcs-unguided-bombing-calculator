@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 from scipy.signal import savgol_filter
 
-file_path = 'bomb_flight_telemetry.csv'
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+file_path = REPOSITORY_ROOT / 'data' / 'raw' / 'bomb_flight_telemetry.csv'
 
 print("📡 Parsing DCS Telemetry Data...")
 
@@ -115,8 +117,8 @@ print("📊 GENERATING AERODYNAMIC LOOK-UP TABLES (LUT)")
 print("==================================================")
 
 mach_resolution = 0.02
-master_json_path = "weapon_drag_database.json"
-js_export_path = "weapon_drag_database.js"
+master_json_path = REPOSITORY_ROOT / 'data' / 'processed' / 'weapon_drag_database.json'
+js_export_path = REPOSITORY_ROOT / 'docs' / 'weapon_drag_database.js'
 
 # Load the existing master database once
 if os.path.exists(master_json_path):
