@@ -38,17 +38,15 @@
         }
         input:focus, select:focus { outline: none; border-color: var(--brand-blue); }
 
-        /* --- UI BUG FIX: Remove invisible number spinners that eat horizontal padding --- */
+        /* Remove invisible number spinners */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
         input[type=number] { -moz-appearance: textfield; }
 
         .input-group { display: flex; align-items: stretch; margin-bottom: 0.5rem; }
-        
-        /* Flex setup: input takes all available remaining space (flex: 1), select takes only what it needs */
         .input-group input { flex: 1 1 0%; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
         
-        /* Dynamic Selectors: width: auto allows native arrow to render safely */
+        /* Dynamic Selectors */
         .input-group select { 
             width: auto; 
             flex-shrink: 0; 
@@ -62,8 +60,7 @@
 
         .unit-toggle { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; border-radius: 6px; }
 
-        /* DYNAMIC GRID FIX: Proportional spacing instead of 1fr 1fr 1fr */
-        /* Altitude and Speed get more room (1.3fr), Wind Dir gets less room (0.6fr) */
+        /* Proportional grid for wind to give numbers more space */
         .wind-row { display: grid; grid-template-columns: 1.3fr 1.3fr 0.6fr; gap: 0.6rem; align-items: start; margin-top: 0.5rem; }
         .wind-header { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: -0.3rem; margin-top: 1rem; }
 
@@ -84,23 +81,13 @@
         .briefing p { margin: 0; font-size: 1.05rem; }
         .hl { font-family: ui-monospace, monospace; font-weight: bold; background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem; border-radius: 4px; }
 
-        /* --- RESPONSIVE MOBILE OVERRIDES --- */
         @media (max-width: 600px) {
             body { padding: 15px 10px; }
             .card { padding: 1.2rem; }
-            
-            /* Tightly pack the grid gaps */
             .wind-row { gap: 0.4rem; }
-            
-            /* Reduce internal text box padding slightly to maximize typing room */
             input, select { padding: 0.75rem 0.4rem; font-size: 0.95rem; }
-            
-            /* Allow select to naturally shrink font slightly, but keep arrow */
             .input-group select { padding: 0 0.1rem 0 0.3rem; font-size: 0.8rem; }
-            
-            /* Center the Wind Dir text since it's in a narrower column now */
             .wind-row > input { text-align: center; }
-            
             .briefing { padding: 1.2rem; }
         }
     </style>
@@ -214,7 +201,6 @@
 </div>
 
 <script>
-    // Constants
     const FT_TO_M = 0.3048;
     const KTS_TO_MS = 0.514444;
     const KMH_TO_MS = 0.277778;
@@ -225,7 +211,6 @@
     const ATM_EXPONENT = 5.25588; 
     const SOS_CONSTANT = 401.87; 
 
-    // DOM Init
     window.addEventListener('DOMContentLoaded', () => {
         let select = document.getElementById('weapon_select');
         if (typeof WEAPON_DATABASE !== 'undefined') {
@@ -239,7 +224,6 @@
         }
     });
 
-    // Global Unit Toggle - Changes all individual dropdowns at once
     function setGlobalUnits() {
         let isImp = document.getElementById('global_unit').value === 'imperial';
         
@@ -252,7 +236,6 @@
         });
     }
 
-    // Helper: Parse value dynamically based on its attached unit selector
     const getVal = (id, type) => {
         let val = parseFloat(document.getElementById(id).value) || 0;
         let unit = document.getElementById(id + '_u').value;
@@ -262,7 +245,6 @@
         return val; 
     };
 
-    // Helper: Format universally into dual Metric/Imperial readouts
     function formatDistDual(meters) {
         let absM = Math.abs(meters);
         let ft = absM / FT_TO_M;
@@ -306,7 +288,6 @@
         let weapon = WEAPON_DATABASE[document.getElementById('weapon_select').value];
         if (!weapon) { alert("Weapon profile not found!"); return; }
 
-        // Fetch user inputs properly converted to SI Standard via the per-field selectors
         let alt = getVal('alt', 'dist');
         let gs_ms = getVal('gs', 'spd');
         let targetElev = getVal('target_elev', 'dist');
@@ -315,7 +296,6 @@
         let hdg_rad = hdg_deg * (Math.PI / 180);
         let groundTemp = parseFloat(document.getElementById('ground_temp').value);
 
-        // Map wind inputs dynamically
         let rawWind = [
             {alt: getVal('w1_a', 'dist'), spd: getVal('w1_s', 'spd'), dir: parseFloat(document.getElementById('w1_d').value)},
             {alt: getVal('w2_a', 'dist'), spd: getVal('w2_s', 'spd'), dir: parseFloat(document.getElementById('w2_d').value)},
@@ -323,7 +303,6 @@
             {alt: getVal('w4_a', 'dist'), spd: getVal('w4_s', 'spd'), dir: parseFloat(document.getElementById('w4_d').value)}
         ];
         
-        // Sort wind descending strictly by converted meters MSL
         let windLayers = rawWind.sort((a, b) => b.alt - a.alt);
         windLayers.forEach(w => {
             let rad = w.dir * (Math.PI / 180);
@@ -343,7 +322,6 @@
         const T0 = groundTemp + 273.15;
         let lutState = { index: Math.floor(weapon.dragTable.length / 2) };
 
-        // Integrator Loop
         while (pos.y > targetElev && time < 120) {
             let wind = getWindAtAlt(pos.y, windLayers);
             let vRelX = vel.x - wind.vx, vRelY = vel.y, vRelZ = vel.z - wind.vz;
@@ -406,10 +384,10 @@
         if (Math.abs(crosswindDrift) < 1.0) {
             briefText += `Maintain level flight and release when GPS distance (DIS) matches your forward range.`;
         } else {
-            briefText += `Maneuver until Cross-Track Error (XTK) reads <span class="hl">${(Math.abs(crosswindDrift) / FT_TO_M).toFixed(0)} ft</span> (${offsetDirection}), then fly parallel. Target over your <span class="hl">${driftRight ? 'left' : 'right'}</span> canopy. Release when DIS matches your forward range.`;
+            // FIX: Pass crosswindDrift directly to formatDistDual to render both Metric and Imperial
+            briefText += `Maneuver until Cross-Track Error (XTK) reads <span class="hl">${formatDistDual(crosswindDrift)}</span> (${offsetDirection}), then fly parallel. Target over your <span class="hl">${driftRight ? 'left' : 'right'}</span> canopy. Release when DIS matches your forward range.`;
         }
 
-        // Add Weapon-Specific Dispersion 
         if (weapon.dispersion) {
             let cep50 = forwardRange * weapon.dispersion.cep50_ratio;
             let cep90 = forwardRange * weapon.dispersion.cep90_ratio;
