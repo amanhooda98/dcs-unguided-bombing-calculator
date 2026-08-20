@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
-file_path = 'Bomb_Telemetry.csv'
+file_path = 'bomb_flight_telemetry.csv'
 
 print("📡 Parsing DCS Telemetry Data...")
 
@@ -115,8 +115,8 @@ print("📊 GENERATING AERODYNAMIC LOOK-UP TABLES (LUT)")
 print("==================================================")
 
 mach_resolution = 0.02
-master_json_path = "weapons_master.json"
-js_export_path = "weapons.js"
+master_json_path = "weapon_drag_database.json"
+js_export_path = "weapon_drag_database.js"
 
 # Load the existing master database once
 if os.path.exists(master_json_path):
