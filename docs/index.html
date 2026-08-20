@@ -256,17 +256,47 @@
     }
 
     function getWindAtAlt(alt, layers) {
+        // Above the highest layer (8000m), wind remains constant
         if (alt >= layers[0].alt) return { vx: layers[0].vx, vz: layers[0].vz };
         if (alt <= 0) return { vx: 0, vz: 0 };
+
         for (let i = 0; i < layers.length - 1; i++) {
             if (alt >= layers[i+1].alt) {
                 let u = layers[i], l = layers[i+1];
-                let f = (alt - l.alt) / (u.alt - l.alt);
-                return { vx: l.vx + (u.vx - l.vx) * f, vz: l.vz + (u.vz - l.vz) * f };
+                
+                // Identify the DCS boundary layer (typically 500m down to 10m)
+                // Assuming 4 layers are passed, this is the last interpolation segment
+                if (i === layers.length - 2) {
+                    // Logarithmic interpolation
+                    let logAlt = Math.log(alt);
+                    let logL = Math.log(l.alt);
+                    let logU = Math.log(u.alt);
+                    let f = (logAlt - logL) / (logU - logL);
+                    
+                    return { 
+                        vx: l.vx + (u.vx - l.vx) * f, 
+                        vz: l.vz + (u.vz - l.vz) * f 
+                    };
+                } else {
+                    // Standard linear interpolation for higher altitudes (8000m-2000m, 2000m-500m)
+                    let f = (alt - l.alt) / (u.alt - l.alt);
+                    
+                    return { 
+                        vx: l.vx + (u.vx - l.vx) * f, 
+                        vz: l.vz + (u.vz - l.vz) * f 
+                    };
+                }
             }
         }
-        let f = alt / layers[layers.length-1].alt; 
-        return { vx: layers[layers.length-1].vx * f, vz: layers[layers.length-1].vz * f };
+        
+        // Sharp linear drop below the lowest defined layer (10m down to surface)
+        let bottomLayer = layers[layers.length-1];
+        let f = alt / bottomLayer.alt; 
+        
+        return { 
+            vx: bottomLayer.vx * f, 
+            vz: bottomLayer.vz * f 
+        };
     }
 
     function getKdFromLUT(mach, lut, stateTracker) {
