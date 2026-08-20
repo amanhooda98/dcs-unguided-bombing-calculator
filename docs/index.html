@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>DCS Unguided Bombing Calculator</title>
-    <!-- Links to your external weapon coefficients file -->
     <script src="weapon_drag_database.js"></script>
     <style>
         :root {
@@ -21,85 +20,80 @@
             --radius-md: 8px;
         }
 
-        body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--bg-base);
-            color: var(--text-primary);
-            margin: 0;
-            padding: 3vw 20px; /* Responsive outer padding */
-            display: flex;
-            justify-content: center;
-            font-size: 16px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1000px;
-        }
-
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg-base); color: var(--text-primary); margin: 0; padding: 3vw 20px; display: flex; justify-content: center; font-size: 16px; }
+        .container { width: 100%; max-width: 1000px; }
         h1 { font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 700; text-align: center; margin-bottom: 0.5rem; }
         .subtitle { text-align: center; color: var(--text-secondary); font-size: clamp(0.9rem, 2vw, 1rem); margin-bottom: 2rem; }
         
-        /* FLUID RESPONSIVE GRID */
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); 
-            gap: 1.5rem; 
-            margin-bottom: 1.5rem; 
-        }
-        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
         .card { background: var(--bg-surface); padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--border); }
-        .card h2 { font-size: 1.1rem; color: var(--text-secondary); margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+        .card h2 { font-size: 1.1rem; color: var(--text-secondary); margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; display: flex; align-items: center; justify-content: space-between; }
 
         label { display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.4rem; margin-top: 1rem; }
         
-        /* TOUCH-OPTIMIZED INPUTS */
         input, select { 
-            width: 100%; padding: 0.85rem 0.75rem; 
-            background: var(--bg-base); border: 1px solid var(--border); 
+            width: 100%; padding: 0.85rem 0.75rem; background: var(--bg-base); border: 1px solid var(--border); 
             color: var(--text-primary); border-radius: var(--radius-lg); 
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
-            font-size: 1rem; box-sizing: border-box; transition: border-color 0.2s;
+            font-family: ui-monospace, SFMono-Regular, monospace; font-size: 1rem; box-sizing: border-box; transition: border-color 0.2s;
         }
         input:focus, select:focus { outline: none; border-color: var(--brand-blue); }
 
-        .wind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.8rem; align-items: center; margin-top: 0.8rem; }
-        .wind-label { font-size: 0.95rem; }
-        .wind-header { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; }
-
-        button { 
-            width: 100%; padding: 1.2rem; font-size: 1.1rem; font-weight: 600; 
-            background: var(--brand-blue); color: white; border: none; 
-            border-radius: var(--radius-md); cursor: pointer; transition: opacity 0.2s; margin-bottom: 2rem;
-            touch-action: manipulation;
+        /* UI BUG FIX: Remove invisible number spinners */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
         }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .input-group { display: flex; align-items: stretch; margin-bottom: 0.5rem; }
+        .input-group input { flex: 1 1 0%; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
+        
+        /* ULTRA-COMPACT UNIT SELECTORS */
+        .input-group select { 
+            width: 60px; /* Reduced from 85px */
+            flex-shrink: 0; 
+            border-top-left-radius: 0; 
+            border-bottom-left-radius: 0; 
+            background: var(--bg-element); 
+            padding: 0 0.1rem 0 0.2rem; /* Tighter padding */
+            font-size: 0.85rem; 
+            cursor: pointer; 
+        }
+
+        .unit-toggle { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; border-radius: 6px; }
+
+        .wind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; align-items: start; margin-top: 0.5rem; }
+        .wind-header { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: -0.3rem; margin-top: 1rem; }
+
+        button { width: 100%; padding: 1.2rem; font-size: 1.1rem; font-weight: 600; background: var(--brand-blue); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; transition: opacity 0.2s; margin-bottom: 2rem; }
         button:hover { opacity: 0.9; }
 
         .results-container { display: none; }
-        .dashboard-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); 
-            gap: 1.5rem; margin-bottom: 1.5rem; 
-        }
-        
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
         .data-row { display: flex; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid var(--border); align-items: center; }
         .data-row:last-child { border-bottom: none; }
         .data-label { color: var(--text-secondary); font-size: 0.95rem; }
-        .data-value { font-family: ui-monospace, SFMono-Regular, monospace; font-weight: 600; font-size: 1rem; text-align: right; }
+        .data-value { font-family: ui-monospace, monospace; font-weight: 600; font-size: 1rem; text-align: right; }
         .val-orange { color: var(--data-orange); }
         .val-blue { color: var(--brand-blue); }
 
-        .briefing { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1.5rem; border-radius: var(--radius-lg); line-height: 1.6; }
+        .briefing { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 1.5rem; border-radius: var(--radius-lg); line-height: 1.6; margin-bottom: 1rem; }
         .briefing h3 { color: var(--data-green); margin-top: 0; display: flex; align-items: center; gap: 0.5rem; }
         .briefing p { margin: 0; font-size: 1.05rem; }
         .hl { font-family: ui-monospace, monospace; font-weight: bold; background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem; border-radius: 4px; }
 
-        /* MOBILE OVERRIDES */
         @media (max-width: 600px) {
             body { padding: 15px 10px; }
             .card { padding: 1.2rem; }
             .wind-row { gap: 0.4rem; }
             input, select { padding: 0.75rem 0.5rem; font-size: 0.95rem; }
+            
+            /* Further compress on mobile */
+            .input-group select { width: 55px; padding: 0; font-size: 0.8rem; }
+            
             .briefing { padding: 1.2rem; }
         }
     </style>
@@ -111,25 +105,72 @@
 
     <div class="grid">
         <div class="card">
-            <h2>✈️ Aircraft & Weapon State</h2>
+            <h2>
+                <span>✈️ Aircraft State</span>
+                <select id="global_unit" class="unit-toggle" onchange="setGlobalUnits()">
+                    <option value="metric">Global: Metric</option>
+                    <option value="imperial">Global: Imperial</option>
+                </select>
+            </h2>
             <label>Select Weapon Profile</label>
-            <select id="weapon_select"></select>
+            <select id="weapon_select" style="margin-bottom: 1rem;"></select>
             
-            <label>Release Altitude (meters MSL)</label> <input type="number" id="alt" value="10000">
-            <label>True Airspeed (km/h)</label> <input type="number" id="tas" value="950">
-            <label>Pitch / Dive Angle (°)</label> <input type="number" id="pitch" value="0">
-            <label>Target Attack Heading (°)</label> <input type="number" id="heading" value="360">
-            <label>Target Elevation (meters MSL)</label> <input type="number" id="target_elev" value="0">
+            <label>Release Altitude (MSL)</label> 
+            <div class="input-group">
+                <input type="number" id="alt" value="10000">
+                <select id="alt_u"><option value="m">m</option><option value="ft">ft</option></select>
+            </div>
+
+            <label>Ground Speed</label> 
+            <div class="input-group">
+                <input type="number" id="gs" value="950">
+                <select id="gs_u"><option value="kmh">km/h</option><option value="kts">kts</option></select>
+            </div>
+
+            <label>Pitch / Dive Angle (°)</label> 
+            <input type="number" id="pitch" value="0" style="margin-bottom: 0.5rem;">
+            
+            <label>Target Ground Track (°)</label> 
+            <input type="number" id="heading" value="360" style="margin-bottom: 0.5rem;">
+            
+            <label>Target Elevation (MSL)</label> 
+            <div class="input-group">
+                <input type="number" id="target_elev" value="0">
+                <select id="target_elev_u"><option value="m">m</option><option value="ft">ft</option></select>
+            </div>
         </div>
 
         <div class="card">
             <h2>🌪️ Atmospheric Data</h2>
-            <label>Base Temperature (°C at Sea Level)</label> <input type="number" id="ground_temp" value="20">
-            <div class="wind-row wind-header" style="margin-top: 1rem;"> <div>Altitude</div> <div>Speed (m/s)</div> <div>Direction (°)</div> </div>
-            <div class="wind-row"> <div class="wind-label">8000m</div> <input type="number" id="w8_spd" value="0"> <input type="number" id="w8_dir" value="0"> </div>
-            <div class="wind-row"> <div class="wind-label">2000m</div> <input type="number" id="w2_spd" value="0"> <input type="number" id="w2_dir" value="0"> </div>
-            <div class="wind-row"> <div class="wind-label">500m</div> <input type="number" id="w05_spd" value="0"> <input type="number" id="w05_dir" value="0"> </div>
-            <div class="wind-row"> <div class="wind-label">10m</div> <input type="number" id="w00_spd" value="0"> <input type="number" id="w00_dir" value="0"> </div>
+            <label>Base Temperature (°C at Sea Level)</label> 
+            <input type="number" id="ground_temp" value="20">
+            
+            <div class="wind-row wind-header"> <div>Altitude</div> <div>Speed</div> <div>Wind Dir (°)</div> </div>
+            
+            <!-- Wind Layer 1 -->
+            <div class="wind-row"> 
+                <div class="input-group"><input type="number" id="w1_a" value="8000"><select id="w1_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
+                <div class="input-group"><input type="number" id="w1_s" value="0"><select id="w1_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
+                <input type="number" id="w1_d" value="0">
+            </div>
+            <!-- Wind Layer 2 -->
+            <div class="wind-row"> 
+                <div class="input-group"><input type="number" id="w2_a" value="2000"><select id="w2_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
+                <div class="input-group"><input type="number" id="w2_s" value="0"><select id="w2_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
+                <input type="number" id="w2_d" value="0">
+            </div>
+            <!-- Wind Layer 3 -->
+            <div class="wind-row"> 
+                <div class="input-group"><input type="number" id="w3_a" value="500"><select id="w3_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
+                <div class="input-group"><input type="number" id="w3_s" value="0"><select id="w3_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
+                <input type="number" id="w3_d" value="0">
+            </div>
+            <!-- Wind Layer 4 -->
+            <div class="wind-row"> 
+                <div class="input-group"><input type="number" id="w4_a" value="10"><select id="w4_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
+                <div class="input-group"><input type="number" id="w4_s" value="0"><select id="w4_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
+                <input type="number" id="w4_d" value="0">
+            </div>
         </div>
     </div>
 
@@ -149,11 +190,11 @@
                 <h2>📡 GNS 430 Solution</h2>
                 <div class="data-row"> <span class="data-label">Release Distance (DIS)</span> <span class="data-value val-blue" id="res_gns_dis">--</span> </div>
                 <div class="data-row"> <span class="data-label">Target Course (OBS)</span> <span class="data-value val-blue" id="res_gns_hdg">--</span> </div>
-                <div class="data-row"> <span class="data-label">Cross-Track Error (XTK)</span> <span class="data-value val-blue" id="res_gns_brg">--</span> </div>
+                <div class="data-row"> <span class="data-label">Cross-Track (XTK)</span> <span class="data-value val-blue" id="res_gns_brg">--</span> </div>
             </div>
         </div>
 
-        <div class="briefing" id="extrap_warning" style="display:none; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.1); margin-bottom: 1.5rem;">
+        <div class="briefing" id="extrap_warning" style="display:none; border-color: rgba(245,158,11,0.4); background: rgba(245,158,11,0.1);">
             <h3 style="color: var(--data-orange);">⚠️ Outside Calibrated Range</h3>
             <p id="extrap_warning_text" style="font-size: 0.95rem;">--</p>
         </div>
@@ -166,6 +207,18 @@
 </div>
 
 <script>
+    // Constants
+    const FT_TO_M = 0.3048;
+    const KTS_TO_MS = 0.514444;
+    const KMH_TO_MS = 0.277778;
+    const G = 9.81;
+    const R = 287.05;
+    const LAPSE_RATE = 0.0065;
+    const P0 = 101325;
+    const ATM_EXPONENT = 5.25588; 
+    const SOS_CONSTANT = 401.87; 
+
+    // DOM Init
     window.addEventListener('DOMContentLoaded', () => {
         let select = document.getElementById('weapon_select');
         if (typeof WEAPON_DATABASE !== 'undefined') {
@@ -179,92 +232,92 @@
         }
     });
 
-    const G = 9.81;
-    const R = 287.05;
-    const LAPSE_RATE = 0.0065;
-    const P0 = 101325;
-    const ATM_EXPONENT = G / (R * LAPSE_RATE); // Pre-computed 5.25588
-    const SOS_CONSTANT = 1.4 * R; // Pre-computed 401.87
-
-    function formatRangeExplicit(meters) {
-        let absM = Math.abs(meters);
-        let metersStr = absM.toFixed(0) + " m";
-        let kmStr = (absM / 1000).toFixed(2) + " km";
-        let nmStr = (absM / 1852).toFixed(2) + " NM";
-        return `${metersStr} (${kmStr} / ${nmStr})`;
+    // Global Unit Toggle - Changes all individual dropdowns at once
+    function setGlobalUnits() {
+        let isImp = document.getElementById('global_unit').value === 'imperial';
+        
+        ['alt_u', 'target_elev_u', 'w1_a_u', 'w2_a_u', 'w3_a_u', 'w4_a_u'].forEach(id => {
+            document.getElementById(id).value = isImp ? 'ft' : 'm';
+        });
+        document.getElementById('gs_u').value = isImp ? 'kts' : 'kmh';
+        ['w1_s_u', 'w2_s_u', 'w3_s_u', 'w4_s_u'].forEach(id => {
+            document.getElementById(id).value = isImp ? 'kts' : 'ms';
+        });
     }
 
-    function formatDist(meters) {
+    // Helper: Parse value dynamically based on its attached unit selector
+    const getVal = (id, type) => {
+        let val = parseFloat(document.getElementById(id).value) || 0;
+        let unit = document.getElementById(id + '_u').value;
+        if (type === 'dist' && unit === 'ft') return val * FT_TO_M;
+        if (type === 'spd' && unit === 'kts') return val * KTS_TO_MS;
+        if (type === 'spd' && unit === 'kmh') return val * KMH_TO_MS;
+        return val; 
+    };
+
+    // Helper: Format universally into dual Metric/Imperial readouts
+    function formatDistDual(meters) {
         let absM = Math.abs(meters);
-        let metric = absM >= 1000 ? (absM / 1000).toFixed(2) + " km" : absM.toFixed(0) + " m";
-        let nm = (absM / 1852).toFixed(2) + " NM";
-        return `${metric} (${nm})`;
+        let ft = absM / FT_TO_M;
+        if (absM >= 1000) {
+            let nm = absM / 1852;
+            return `${absM.toFixed(0)} m / ${ft.toFixed(0)} ft (${nm.toFixed(2)} NM)`;
+        }
+        return `${absM.toFixed(0)} m / ${ft.toFixed(0)} ft`;
     }
 
     function getWindAtAlt(alt, layers) {
         if (alt >= layers[0].alt) return { vx: layers[0].vx, vz: layers[0].vz };
         if (alt <= 0) return { vx: 0, vz: 0 };
-
-        if (alt >= layers[1].alt) {
-            let u = layers[0], l = layers[1];
-            let f = (alt - l.alt) / (u.alt - l.alt);
-            return { vx: l.vx + (u.vx - l.vx) * f, vz: l.vz + (u.vz - l.vz) * f };
-        } 
-        else if (alt >= layers[2].alt) {
-            let u = layers[1], l = layers[2];
-            let f = (alt - l.alt) / (u.alt - l.alt);
-            return { vx: l.vx + (u.vx - l.vx) * f, vz: l.vz + (u.vz - l.vz) * f };
-        } 
-        else if (alt >= layers[3].alt) {
-            let u = layers[2], l = layers[3];
-            let logFactor = Math.log(Math.max(alt, 1) / 10) / 3.91202; // Precomputed Math.log(500/10)
-            return { vx: l.vx + (u.vx - l.vx) * logFactor, vz: l.vz + (u.vz - l.vz) * logFactor };
+        for (let i = 0; i < layers.length - 1; i++) {
+            if (alt >= layers[i+1].alt) {
+                let u = layers[i], l = layers[i+1];
+                let f = (alt - l.alt) / (u.alt - l.alt);
+                return { vx: l.vx + (u.vx - l.vx) * f, vz: l.vz + (u.vz - l.vz) * f };
+            }
         }
-        else {
-            let f = alt / layers[3].alt; 
-            return { vx: layers[3].vx * f, vz: layers[3].vz * f };
-        }
+        let f = alt / layers[layers.length-1].alt; 
+        return { vx: layers[layers.length-1].vx * f, vz: layers[layers.length-1].vz * f };
     }
 
-    // STATEFUL O(1) LUT LOOKUP FOR EXTREME PERFORMANCE
     function getKdFromLUT(mach, lut, stateTracker) {
         if (!lut || lut.length === 0) return 0;
         if (mach <= lut[0].mach) return lut[0].kd;
         if (mach >= lut[lut.length - 1].mach) return lut[lut.length - 1].kd;
 
         let i = stateTracker.index;
-        
-        // Smart shift: since dt is small, index usually moves by exactly 0 or 1 slot per frame.
         while (i > 0 && mach < lut[i].mach) i--;
         while (i < lut.length - 2 && mach >= lut[i+1].mach) i++;
-        
-        stateTracker.index = i; // Save exact position for the next frame
+        stateTracker.index = i;
 
         let m1 = lut[i].mach, k1 = lut[i].kd;
         let m2 = lut[i+1].mach, k2 = lut[i+1].kd;
-        
         return k1 + ((mach - m1) / (m2 - m1)) * (k2 - k1);
     }
 
     function runSimulation() {
         let weapon = WEAPON_DATABASE[document.getElementById('weapon_select').value];
-        if (!weapon) { alert("Selected weapon profile not found!"); return; }
+        if (!weapon) { alert("Weapon profile not found!"); return; }
 
-        let alt = parseFloat(document.getElementById('alt').value);
-        let tas_ms = parseFloat(document.getElementById('tas').value) / 3.6;
+        // Fetch user inputs properly converted to SI Standard via the per-field selectors
+        let alt = getVal('alt', 'dist');
+        let gs_ms = getVal('gs', 'spd');
+        let targetElev = getVal('target_elev', 'dist'); // BUG FIXED HERE
         let pitch_rad = parseFloat(document.getElementById('pitch').value) * (Math.PI / 180);
         let hdg_deg = parseFloat(document.getElementById('heading').value);
         let hdg_rad = hdg_deg * (Math.PI / 180);
-        let targetElev = parseFloat(document.getElementById('target_elev').value);
         let groundTemp = parseFloat(document.getElementById('ground_temp').value);
 
-        let windLayers = [
-            {alt: 8000, spd: parseFloat(document.getElementById('w8_spd').value), dir: parseFloat(document.getElementById('w8_dir').value)},
-            {alt: 2000, spd: parseFloat(document.getElementById('w2_spd').value), dir: parseFloat(document.getElementById('w2_dir').value)},
-            {alt: 500,  spd: parseFloat(document.getElementById('w05_spd').value), dir: parseFloat(document.getElementById('w05_dir').value)},
-            {alt: 10,   spd: parseFloat(document.getElementById('w00_spd').value), dir: parseFloat(document.getElementById('w00_dir').value)}
+        // Map wind inputs dynamically
+        let rawWind = [
+            {alt: getVal('w1_a', 'dist'), spd: getVal('w1_s', 'spd'), dir: parseFloat(document.getElementById('w1_d').value)},
+            {alt: getVal('w2_a', 'dist'), spd: getVal('w2_s', 'spd'), dir: parseFloat(document.getElementById('w2_d').value)},
+            {alt: getVal('w3_a', 'dist'), spd: getVal('w3_s', 'spd'), dir: parseFloat(document.getElementById('w3_d').value)},
+            {alt: getVal('w4_a', 'dist'), spd: getVal('w4_s', 'spd'), dir: parseFloat(document.getElementById('w4_d').value)}
         ];
         
+        // Sort wind descending strictly by converted meters MSL
+        let windLayers = rawWind.sort((a, b) => b.alt - a.alt);
         windLayers.forEach(w => {
             let rad = w.dir * (Math.PI / 180);
             w.vx = w.spd * Math.sin(rad); 
@@ -272,45 +325,34 @@
         });
 
         let pos = { x: 0, y: alt, z: 0 }, vel = {
-            x: tas_ms * Math.cos(-pitch_rad) * Math.sin(hdg_rad),
-            y: tas_ms * Math.sin(-pitch_rad),
-            z: tas_ms * Math.cos(-pitch_rad) * Math.cos(hdg_rad)
+            x: gs_ms * Math.cos(-pitch_rad) * Math.sin(hdg_rad),
+            y: gs_ms * Math.sin(-pitch_rad),
+            z: gs_ms * Math.cos(-pitch_rad) * Math.cos(hdg_rad)
         }, dt = 0.01, time = 0;
 
-        let extrapolated = false;
-        let machMinSeen = Infinity, machMaxSeen = -Infinity;
+        let extrapolated = false, machMinSeen = Infinity, machMaxSeen = -Infinity;
         let minLutMach = weapon.dragTable ? weapon.dragTable[0].mach : 0;
         let maxLutMach = weapon.dragTable ? weapon.dragTable[weapon.dragTable.length - 1].mach : 0;
-        
         const T0 = groundTemp + 273.15;
-        let lutState = { index: Math.floor(weapon.dragTable.length / 2) }; // Start search in the middle
+        let lutState = { index: Math.floor(weapon.dragTable.length / 2) };
 
-        // 🚀 THE EXTREME PERFORMANCE INTEGRATOR LOOP
+        // Integrator Loop
         while (pos.y > targetElev && time < 120) {
             let wind = getWindAtAlt(pos.y, windLayers);
             let vRelX = vel.x - wind.vx, vRelY = vel.y, vRelZ = vel.z - wind.vz;
-            
-            // Replaced Math.pow with direct multiplication
-            let vMagSq = vRelX * vRelX + vRelY * vRelY + vRelZ * vRelZ;
+            let vMagSq = vRelX*vRelX + vRelY*vRelY + vRelZ*vRelZ;
             let vMag = Math.sqrt(vMagSq);
             
-            // De-duplicated Atmospheric Math (Combined Density & Speed of Sound)
-            let T_alt = T0 - (LAPSE_RATE * pos.y);
-            if (T_alt <= 1) T_alt = 1;
-            let pressure = P0 * Math.pow(1 - (LAPSE_RATE * pos.y / T0), ATM_EXPONENT);
-            let rho = pressure / (R * T_alt);
-            let speedOfSound = Math.sqrt(SOS_CONSTANT * T_alt);
+            let T_alt = Math.max(T0 - (LAPSE_RATE * pos.y), 1);
+            let rho = (P0 * Math.pow(1 - (LAPSE_RATE * pos.y / T0), ATM_EXPONENT)) / (R * T_alt);
+            let mach = vMag / Math.sqrt(SOS_CONSTANT * T_alt);
             
-            let mach = vMag / speedOfSound;
             if (mach < machMinSeen) machMinSeen = mach;
             if (mach > machMaxSeen) machMaxSeen = mach;
             if (mach < minLutMach || mach > maxLutMach) extrapolated = true;
 
-            // O(1) Cached Lookup
             let Kd = getKdFromLUT(mach, weapon.dragTable, lutState);
-            
-            // Final Drag Application
-            let aDragTotal = Kd * rho * vMagSq; // Math.abs removed, constants guaranteed positive
+            let aDragTotal = Kd * rho * vMagSq;
             
             vel.x -= (aDragTotal * (vRelX / vMag)) * dt; 
             vel.y -= ((aDragTotal * (vRelY / vMag)) + G) * dt; 
@@ -326,47 +368,45 @@
         let crosswindDrift = travelDist * Math.sin(hdgDiff);
 
         let driftRight = crosswindDrift > 0;
-        let offsetDirection = driftRight ? "L" : "R";
-        let offsetSide = driftRight ? "left" : "right";
-        let canopySide = driftRight ? "right" : "left";
+        let offsetDirection = driftRight ? "R" : "L";
         let strTargetHdg = Math.round(hdg_deg).toString().padStart(3, '0') + "°";
         
         let finalT_alt = Math.max(T0 - (LAPSE_RATE * targetElev), 1);
-        let speedOfSoundTarget = Math.sqrt(SOS_CONSTANT * finalT_alt);
         let impactSpeedMs = Math.sqrt(vel.x*vel.x + vel.y*vel.y + vel.z*vel.z);
         let impactKmh = impactSpeedMs * 3.6;
         let impactKts = impactKmh * 0.539957;
-        let mach = impactSpeedMs / speedOfSoundTarget;
+        let mach = impactSpeedMs / Math.sqrt(SOS_CONSTANT * finalT_alt);
 
-        document.getElementById('res_range').innerText = formatRangeExplicit(forwardRange);
-        document.getElementById('res_drift').innerText = formatDist(crosswindDrift) + " " + offsetDirection;
+        document.getElementById('res_range').innerText = formatDistDual(forwardRange);
+        document.getElementById('res_drift').innerText = formatDistDual(crosswindDrift) + " " + offsetDirection;
         document.getElementById('res_tof').innerText = time.toFixed(1) + " s";
         document.getElementById('res_impact_v').innerText = `${impactKmh.toFixed(0)} km/h / ${impactKts.toFixed(0)} kts (${mach.toFixed(2)} M)`;
 
         let warnEl = document.getElementById('extrap_warning');
         if (extrapolated) {
-            let rangeStr = (weapon.dragTable && weapon.dragTable.length > 2)
-                ? `Mach ${minLutMach.toFixed(2)}–${maxLutMach.toFixed(2)}`
-                : `no real telemetry yet (placeholder LUT)`;
-            document.getElementById('extrap_warning_text').innerHTML =
-                `<b>${weapon.name}</b> is calibrated over ${rangeStr}. This trajectory reached ` +
-                `Mach ${machMinSeen.toFixed(2)}–${machMaxSeen.toFixed(2)}, so part of this solution ` +
-                `is extrapolated beyond real telemetry and should be treated as less certain.`;
+            let rangeStr = (weapon.dragTable && weapon.dragTable.length > 2) ? `Mach ${minLutMach.toFixed(2)}–${maxLutMach.toFixed(2)}` : `no telemetry`;
+            document.getElementById('extrap_warning_text').innerHTML = `<b>${weapon.name}</b> is calibrated over ${rangeStr}. Trajectory reached Mach ${machMinSeen.toFixed(2)}–${machMaxSeen.toFixed(2)}.`;
             warnEl.style.display = "block";
         } else {
             warnEl.style.display = "none";
         }
         
-        document.getElementById('res_gns_dis').innerText = formatRangeExplicit(forwardRange);
+        document.getElementById('res_gns_dis').innerText = formatDistDual(forwardRange);
         document.getElementById('res_gns_hdg').innerText = "OBS " + strTargetHdg;
-        document.getElementById('res_gns_brg').innerText = formatDist(crosswindDrift) + " " + offsetDirection;
+        document.getElementById('res_gns_brg').innerText = formatDistDual(crosswindDrift) + " " + offsetDirection;
 
-        let briefText;
+        let briefText = `<b>[${weapon.name}]</b> Configure GNS 430 to OBS mode on <span class="hl">${strTargetHdg}</span>. `;
         if (Math.abs(crosswindDrift) < 1.0) {
-            briefText = `<b>[${weapon.name}]</b> Configure GNS 430 to OBS mode on <span class="hl">${strTargetHdg}</span>. Zero wind detected: fly a direct path. Maintain level flight and release when GPS distance (DIS) reads <span class="hl">${formatRangeExplicit(forwardRange)}</span>.`;
+            briefText += `Maintain level flight and release when GPS distance (DIS) matches your forward range.`;
         } else {
-            let offsetFormatted = formatDist(crosswindDrift);
-            briefText = `<b>[${weapon.name}]</b> Configure GNS 430 to OBS mode on <span class="hl">${strTargetHdg}</span>. Customize a Nav Page data field to show <b>Cross-Track Error (XTK)</b>. Maneuver away from the center line until your XTK numerically reads <span class="hl">${offsetFormatted}</span> to the <span class="hl">${offsetSide}</span> (${offsetDirection}), then fly a parallel heading of ${strTargetHdg} to hold that offset. Target over your <span class="hl">${canopySide}</span> canopy. Release when DIS counts down to <span class="hl">${formatRangeExplicit(forwardRange)}</span>.`;
+            briefText += `Maneuver until Cross-Track Error (XTK) reads <span class="hl">${(Math.abs(crosswindDrift) / FT_TO_M).toFixed(0)} ft</span> (${offsetDirection}), then fly parallel. Target over your <span class="hl">${driftRight ? 'left' : 'right'}</span> canopy. Release when DIS matches your forward range.`;
+        }
+
+        // Add Weapon-Specific Dispersion 
+        if (weapon.dispersion) {
+            let cep50 = forwardRange * weapon.dispersion.cep50_ratio;
+            let cep90 = forwardRange * weapon.dispersion.cep90_ratio;
+            briefText += `<br><br><span style="color: var(--data-orange);"><b>🎯 Dispersion Footprint:</b></span> 50% of bombs will land within a <b>${formatDistDual(cep50)}</b> radius. To guarantee a 90% probability of impact, the target must fall within a <b>${formatDistDual(cep90)}</b> radius.`;
         }
 
         document.getElementById('dynamic_briefing').innerHTML = briefText;

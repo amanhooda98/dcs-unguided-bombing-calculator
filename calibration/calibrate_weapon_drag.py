@@ -1,24 +1,24 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import json
+import os
 from pathlib import Path
 from scipy.signal import savgol_filter
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 file_path = REPOSITORY_ROOT / 'data' / 'raw' / 'bomb_flight_telemetry.csv'
+master_json_path = REPOSITORY_ROOT / 'data' / 'processed' / 'weapon_drag_database.json'
+js_export_path = REPOSITORY_ROOT / 'docs' / 'weapon_drag_database.js'
 
 print("📡 Parsing DCS Telemetry Data...")
 
 # 1. CLEAN AND LOAD THE DATA
-# The CSV has "--- NEW DROP ---" separators and headers scattered throughout.
 with open(file_path, 'r') as file:
     lines = file.readlines()
 
 clean_data = []
 for line in lines:
-    if '---' in line:
-        continue
-    if 'Weapon_Name' in line:
+    if '---' in line or 'Weapon_Name' in line:
         continue
     parts = line.strip().split(',')
     if len(parts) == 9:
@@ -27,34 +27,25 @@ for line in lines:
 columns = ['Weapon', 'DropID', 'Time', 'PosX', 'PosY_Alt', 'PosZ', 'VelX', 'VelY', 'VelZ']
 df = pd.DataFrame(clean_data, columns=columns)
 
-# Convert strings to floats (DropID stays as a grouping key)
 for col in columns[2:]:
     df[col] = df[col].astype(float)
 df['DropID'] = df['DropID'].astype(int)
 
-print(f"   Loaded {len(df)} rows across {df['DropID'].nunique()} individual drops "
-    f"(using DropID from telemetry)")
+print(f"   Loaded {len(df)} rows across {df['DropID'].nunique()} individual drops.")
 
 # 2. PER-DROP PHYSICS PROCESSING
-# CRITICAL: every derivative below is computed *within* a single drop's own telemetry.
-# Doing this on the whole concatenated file (the old approach) mixes the last frame of
-# one drop with the first frame of the next at each boundary, corrupting those rows.
 print("⚙️ Processing Aerodynamics per-drop (ISA Atmosphere & Gravity Removal)...")
-
 g = 9.81
 
 def process_drop(d):
     d = d.sort_values('Time').reset_index(drop=True)
     n = len(d)
-    if n < 15:
-        return d.iloc[0:0]  # too short to smooth/differentiate reliably, discard
+    if n < 15: return d.iloc[0:0] 
 
-    # Smooth velocity components before differentiating - raw frame-to-frame diff()
-    # amplifies simulator/logging noise into the acceleration estimate.
-    win = min(31, n - (1 - n % 2))  # largest odd window <= n
+    win = min(31, n - (1 - n % 2))
     win = max(win, 5)
-    if win % 2 == 0:
-        win -= 1
+    if win % 2 == 0: win -= 1
+        
     d['VelX_s'] = savgol_filter(d['VelX'], win, 3)
     d['VelY_s'] = savgol_filter(d['VelY'], win, 3)
     d['VelZ_s'] = savgol_filter(d['VelZ'], win, 3)
@@ -64,78 +55,45 @@ def process_drop(d):
     d['a_Y'] = d['VelY_s'].diff() / d['dt']
     d['a_Z'] = d['VelZ_s'].diff() / d['dt']
 
-    # True speed (use the smoothed velocity for consistency with the derivative)
     d['V_Total'] = np.sqrt(d['VelX_s']**2 + d['VelY_s']**2 + d['VelZ_s']**2)
-
-    # Remove gravity (9.81 m/s^2) from the vertical (Y) axis to isolate drag-only accel
     d['a_Y_drag'] = d['a_Y'] + g
     d['a_Drag_Total'] = np.sqrt(d['a_X']**2 + d['a_Y_drag']**2 + d['a_Z']**2)
 
-    # ISA atmosphere model (15C / 101325 Pa sea-level reference)
     d['Temp_K'] = 288.15 - (0.0065 * d['PosY_Alt'])
     d['Pressure_Pa'] = 101325 * (1 - 0.0000225577 * d['PosY_Alt'])**5.25588
     d['Rho'] = d['Pressure_Pa'] / (287.05 * d['Temp_K'])
-
-    # Local speed of sound -> Mach number. Drag coefficient is fundamentally a function
-    # of Mach (compressibility), not raw velocity, so this is what we fit Kd against.
     d['SpeedOfSound'] = np.sqrt(1.4 * 287.05 * d['Temp_K'])
     d['Mach'] = d['V_Total'] / d['SpeedOfSound']
-
-    # Kd = a_drag / (rho * V^2)   [a_drag = Kd(Mach) * rho * V^2]
     d['Kd'] = d['a_Drag_Total'] / (d['Rho'] * d['V_Total']**2)
+    
     return d
 
 processed = [process_drop(g_) for _, g_ in df.groupby('DropID')]
-df = pd.concat(processed, ignore_index=True)
-
-# Clean up infinite/NaN values from the frame differences
-df = df.replace([np.inf, -np.inf], np.nan).dropna()
-# Filter out impact anomalies / near-zero-speed noise (Kd blows up as V -> 0)
+df = pd.concat(processed, ignore_index=True).replace([np.inf, -np.inf], np.nan).dropna()
 df = df[df['V_Total'] > 50]
 
-n_drops = df['DropID'].nunique()
-print(f"   Mach range in calibration data: {df['Mach'].min():.2f} - {df['Mach'].max():.2f} "
-      f"({(df['Mach'] > 0.8).mean()*100:.0f}% of samples above Mach 0.8 - mostly transonic/supersonic)")
-
-# 3 & 4. GENERATE LUTS AND UPDATE MULTIPLE WEAPONS
-import json
-import os
-
+# 3. GENERATE ADAPTIVE LUTS AND DISPERSION
 print("\n==================================================")
-print("📊 GENERATING AERODYNAMIC LOOK-UP TABLES (LUT)")
+print("📊 GENERATING DATABASE (LUT + DISPERSION)")
 print("==================================================")
 
-master_json_path = REPOSITORY_ROOT / 'data' / 'processed' / 'weapon_drag_database.json'
-js_export_path = REPOSITORY_ROOT / 'docs' / 'weapon_drag_database.js'
-
-# Load the existing master database once
 if os.path.exists(master_json_path):
     with open(master_json_path, 'r') as f:
         database = json.load(f)
 else:
     database = {}
 
-# Detect all unique weapon types inside the CSV file
 unique_weapons = df['Weapon'].unique()
-print(f"Detected {len(unique_weapons)} unique weapon(s) in telemetry: {', '.join(unique_weapons)}")
 
-# Loop through each weapon type and process them separately
 for raw_weapon_name in unique_weapons:
     weapon_name_clean = str(raw_weapon_name).strip()
     weapon_key = weapon_name_clean.lower().replace(" ", "_").replace("-", "_")
-    
-    print(f"\n⚙️ Processing {weapon_name_clean}...")
-    
-    # Isolate only the telemetry frames for THIS specific weapon
     w_df = df[df['Weapon'] == raw_weapon_name].copy()
     
-    # ---------------------------------------------------------
-    # ADAPTIVE VARIABLE GRID (MIL-STD MULTI-REGIME)
-    # ---------------------------------------------------------
+    # --- A. ADAPTIVE VARIABLE GRID ---
     bins_sub = np.arange(0.20, 0.85, 0.02)
-    bins_trans = np.arange(0.85, 1.20, 0.005)
+    bins_trans = np.arange(0.85, 1.20, 0.005) # Dense transonic peak
     bins_super = np.arange(1.20, 2.50, 0.02)
-    
     variable_bins = np.unique(np.concatenate([bins_sub, bins_trans, bins_super]))
     
     min_mach = w_df['Mach'].min()
@@ -149,22 +107,51 @@ for raw_weapon_name in unique_weapons:
     
     drag_table = [{"mach": round(row['Mach'], 3), "kd": round(row['Kd'], 6)} for index, row in lut.iterrows()]
     
+    # --- B. STATISTICAL DISPERSION FOOTPRINT ---
+    drop_stats = []
+    for drop_id, group in w_df.groupby('DropID'):
+        first, last = group.iloc[0], group.iloc[-1]
+        v0_mag = np.sqrt(first['VelX']**2 + first['VelZ']**2)
+        dx, dz = last['PosX'] - first['PosX'], last['PosZ'] - first['PosZ']
+        travel_dist = np.sqrt(dx**2 + dz**2)
+        
+        fwd_range = dx * (first['VelX'] / v0_mag) + dz * (first['VelZ'] / v0_mag)
+        cross_track = -dx * (first['VelZ'] / v0_mag) + dz * (first['VelX'] / v0_mag)
+        
+        speed_group = round(np.sqrt(first['VelX']**2 + first['VelY']**2 + first['VelZ']**2), -1)
+        drop_stats.append({'SpeedGroup': speed_group, 'fwd_range': fwd_range, 'cross_track': cross_track, 'dist': travel_dist})
+        
+    ds_df = pd.DataFrame(drop_stats)
+    fwd_vars, cross_vars, ranges = [], [], []
+    for _, group in ds_df.groupby('SpeedGroup'):
+        if len(group) > 1:
+            fwd_vars.append(group['fwd_range'].var())
+            cross_vars.append(group['cross_track'].var())
+            ranges.append(group['dist'].mean())
+            
+    if ranges:
+        std_fwd_ratio = np.mean([np.sqrt(v) / r for v, r in zip(fwd_vars, ranges)])
+        std_cross_ratio = np.mean([np.sqrt(v) / r for v, r in zip(cross_vars, ranges)])
+        cep50_ratio = (0.562 * std_fwd_ratio) + (0.615 * std_cross_ratio)
+    else:
+        cep50_ratio = 0.0041 # Fallback
+        
+    cep90_ratio = cep50_ratio * 2.146 
+    
     database[weapon_key] = {
         "name": weapon_name_clean,
-        "dragTable": drag_table
+        "dragTable": drag_table,
+        "dispersion": { "cep50_ratio": round(cep50_ratio, 6), "cep90_ratio": round(cep90_ratio, 6) }
     }
-    print(f"✅ Added/Updated LUT for {weapon_key} ({len(drag_table)} data points)")
+    print(f"✅ Added {weapon_name_clean} | Data points: {len(drag_table)} | CEP90 Ratio: {cep90_ratio*100:.2f}%")
 
-# Save master JSON and export JavaScript file
+# 4. EXPORT
 with open(master_json_path, 'w') as f:
     json.dump(database, f, indent=4)
 
-js_content = f"// AUTO-GENERATED BY DCS TELEMETRY SCRIPT\n"
-js_content += f"const WEAPON_DATABASE = {json.dumps(database, indent=4)};\n"
-
 with open(js_export_path, 'w') as f:
-    f.write(js_content)
+    f.write(f"// AUTO-GENERATED BY DCS TELEMETRY SCRIPT\nconst WEAPON_DATABASE = {json.dumps(database, indent=4)};\n")
 
 print("\n==================================================")
-print(f"💾 Successfully auto-generated {js_export_path} with {len(database)} total weapon(s)!")
+print(f"💾 Successfully auto-generated {js_export_path}")
 print("==================================================\n")

@@ -459,6 +459,10 @@ const WEAPON_DATABASE = {
                 "mach": 1.49,
                 "kd": 5.8e-05
             }
-        ]
+        ],
+        "dispersion": {
+            "cep50_ratio": 0.003754,
+            "cep90_ratio": 0.008055
+        }
     }
 };
