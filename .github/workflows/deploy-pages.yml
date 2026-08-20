@@ -3,6 +3,16 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - calibration/**
+      - data/raw/**
+      - data/processed/**
+      - pyproject.toml
+      - uv.lock
+      - docs/weapon_drag_database.js
+  workflow_run:
+    workflows: [Resync Weapon Data]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -16,6 +26,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import json
-import os
 from pathlib import Path
 from scipy.signal import savgol_filter
 
@@ -77,11 +76,7 @@ print("\n==================================================")
 print("📊 GENERATING DATABASE (LUT + DISPERSION)")
 print("==================================================")
 
-if os.path.exists(master_json_path):
-    with open(master_json_path, 'r') as f:
-        database = json.load(f)
-else:
-    database = {}
+database = {}
 
 unique_weapons = df['Weapon'].unique()
 
