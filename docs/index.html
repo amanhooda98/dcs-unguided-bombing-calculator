@@ -38,42 +38,36 @@
         }
         input:focus, select:focus { outline: none; border-color: var(--brand-blue); }
 
-        /* --- UI BUG FIX: Remove invisible number spinners that eat horizontal padding --- */
+        /* Remove invisible number spinners */
         input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; 
-            margin: 0; 
-        }
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
 
         .input-group { display: flex; align-items: stretch; margin-bottom: 0.5rem; }
-        
-        /* --- UI BUG FIX: min-width: 0 allows flex items to shrink without clipping --- */
         .input-group input { flex: 1 1 0%; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
         
-        /* --- ULTRA-COMPACT UNIT SELECTORS --- */
+        /* Ultra-compact unit selectors (Aggressively hides browser arrows) */
         .input-group select { 
-            -webkit-appearance: none; /* Removes the default dropdown arrow */
-            -moz-appearance: none;
-            appearance: none;
+            -webkit-appearance: none !important; 
+            -moz-appearance: none !important;
+            appearance: none !important;
             text-align: center;
             text-align-last: center;
-            width: fit-content; /* Shrinks to exact text size */
-            min-width: 42px; 
+            width: 50px; 
             flex-shrink: 0; 
             border-top-left-radius: 0; 
             border-bottom-left-radius: 0; 
             background: var(--bg-element); 
-            padding: 0 0.4rem; 
+            padding: 0; 
             font-size: 0.85rem; 
             cursor: pointer; 
         }
+        .input-group select::-ms-expand { display: none; }
 
         .unit-toggle { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; border-radius: 6px; }
 
-        .wind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; align-items: start; margin-top: 0.5rem; }
+        /* Adjust grid to steal space from WIND DIR and give it to ALT/SPEED */
+        .wind-row { display: grid; grid-template-columns: 1.25fr 1.25fr 0.7fr; gap: 0.6rem; align-items: start; margin-top: 0.5rem; }
         .wind-header { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: -0.3rem; margin-top: 1rem; }
 
         button { width: 100%; padding: 1.2rem; font-size: 1.1rem; font-weight: 600; background: var(--brand-blue); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; transition: opacity 0.2s; margin-bottom: 2rem; }
@@ -93,19 +87,22 @@
         .briefing p { margin: 0; font-size: 1.05rem; }
         .hl { font-family: ui-monospace, monospace; font-weight: bold; background: rgba(0,0,0,0.3); padding: 0.2rem 0.4rem; border-radius: 4px; }
 
-        /* --- AGGRESSIVE MOBILE OVERRIDES --- */
+        /* --- MOBILE OVERRIDES FOR WIND GRID FIX --- */
         @media (max-width: 600px) {
-            body { padding: 15px 10px; }
+            body { padding: 12px 6px; } /* Maximize screen real estate */
             .card { padding: 1.2rem; }
             
-            /* Tightly pack the 3-column grid */
-            .wind-row { gap: 0.3rem; }
+            /* Squeeze columns together */
+            .wind-row { gap: 4px; }
             
-            /* Shrink horizontal padding inside inputs to prevent cutting off 4-digit numbers */
-            input, select { padding: 0.75rem 0.3rem; font-size: 0.95rem; }
+            /* Shrink horizontal padding inside text boxes severely so large numbers fit */
+            .input-group input { padding: 0.75rem 4px; font-size: 0.95rem; }
             
-            /* Shrink unit boxes to absolute minimum */
-            .input-group select { min-width: 36px; padding: 0 0.15rem; font-size: 0.75rem; }
+            /* Make the unit dropdown exactly wide enough for "m/s" and nothing else */
+            .input-group select { width: 34px; min-width: 34px; font-size: 0.75rem; }
+            
+            /* Regular wind dir input adjustments */
+            .wind-row > input { padding: 0.75rem 4px; font-size: 0.95rem; text-align: center; }
             
             .briefing { padding: 1.2rem; }
         }
@@ -220,7 +217,6 @@
 </div>
 
 <script>
-    // Constants
     const FT_TO_M = 0.3048;
     const KTS_TO_MS = 0.514444;
     const KMH_TO_MS = 0.277778;
@@ -231,7 +227,6 @@
     const ATM_EXPONENT = 5.25588; 
     const SOS_CONSTANT = 401.87; 
 
-    // DOM Init
     window.addEventListener('DOMContentLoaded', () => {
         let select = document.getElementById('weapon_select');
         if (typeof WEAPON_DATABASE !== 'undefined') {
@@ -245,10 +240,8 @@
         }
     });
 
-    // Global Unit Toggle - Changes all individual dropdowns at once
     function setGlobalUnits() {
         let isImp = document.getElementById('global_unit').value === 'imperial';
-        
         ['alt_u', 'target_elev_u', 'w1_a_u', 'w2_a_u', 'w3_a_u', 'w4_a_u'].forEach(id => {
             document.getElementById(id).value = isImp ? 'ft' : 'm';
         });
@@ -258,7 +251,6 @@
         });
     }
 
-    // Helper: Parse value dynamically based on its attached unit selector
     const getVal = (id, type) => {
         let val = parseFloat(document.getElementById(id).value) || 0;
         let unit = document.getElementById(id + '_u').value;
@@ -268,7 +260,6 @@
         return val; 
     };
 
-    // Helper: Format universally into dual Metric/Imperial readouts
     function formatDistDual(meters) {
         let absM = Math.abs(meters);
         let ft = absM / FT_TO_M;
@@ -312,7 +303,6 @@
         let weapon = WEAPON_DATABASE[document.getElementById('weapon_select').value];
         if (!weapon) { alert("Weapon profile not found!"); return; }
 
-        // Fetch user inputs properly converted to SI Standard via the per-field selectors
         let alt = getVal('alt', 'dist');
         let gs_ms = getVal('gs', 'spd');
         let targetElev = getVal('target_elev', 'dist');
@@ -321,7 +311,6 @@
         let hdg_rad = hdg_deg * (Math.PI / 180);
         let groundTemp = parseFloat(document.getElementById('ground_temp').value);
 
-        // Map wind inputs dynamically
         let rawWind = [
             {alt: getVal('w1_a', 'dist'), spd: getVal('w1_s', 'spd'), dir: parseFloat(document.getElementById('w1_d').value)},
             {alt: getVal('w2_a', 'dist'), spd: getVal('w2_s', 'spd'), dir: parseFloat(document.getElementById('w2_d').value)},
@@ -329,7 +318,6 @@
             {alt: getVal('w4_a', 'dist'), spd: getVal('w4_s', 'spd'), dir: parseFloat(document.getElementById('w4_d').value)}
         ];
         
-        // Sort wind descending strictly by converted meters MSL
         let windLayers = rawWind.sort((a, b) => b.alt - a.alt);
         windLayers.forEach(w => {
             let rad = w.dir * (Math.PI / 180);
@@ -349,7 +337,6 @@
         const T0 = groundTemp + 273.15;
         let lutState = { index: Math.floor(weapon.dragTable.length / 2) };
 
-        // Integrator Loop
         while (pos.y > targetElev && time < 120) {
             let wind = getWindAtAlt(pos.y, windLayers);
             let vRelX = vel.x - wind.vx, vRelY = vel.y, vRelZ = vel.z - wind.vz;
@@ -415,7 +402,6 @@
             briefText += `Maneuver until Cross-Track Error (XTK) reads <span class="hl">${(Math.abs(crosswindDrift) / FT_TO_M).toFixed(0)} ft</span> (${offsetDirection}), then fly parallel. Target over your <span class="hl">${driftRight ? 'left' : 'right'}</span> canopy. Release when DIS matches your forward range.`;
         }
 
-        // Add Weapon-Specific Dispersion 
         if (weapon.dispersion) {
             let cep50 = forwardRange * weapon.dispersion.cep50_ratio;
             let cep90 = forwardRange * weapon.dispersion.cep90_ratio;
