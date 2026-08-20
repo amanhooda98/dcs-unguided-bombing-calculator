@@ -9,13 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ProjectArtifactTests(unittest.TestCase):
-    def test_telemetry_has_expected_legacy_header(self):
+    def test_telemetry_has_expected_header(self):
         telemetry_path = ROOT / "data" / "raw" / "bomb_flight_telemetry.csv"
         lines = telemetry_path.read_text().splitlines()
         header = next(line for line in lines if "Weapon_Name" in line)
         self.assertEqual(
             header,
-            "Weapon_Name,Time_s,PosX,PosY_Alt,PosZ,VelX,VelY_Vert,VelZ",
+            "Weapon_Name,DropID,Time_s,PosX,PosY_Alt,PosZ,VelX,VelY_Vert,VelZ",
         )
 
     def test_weapon_database_contains_valid_luts(self):

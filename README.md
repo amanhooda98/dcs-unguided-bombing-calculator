@@ -31,9 +31,9 @@ Each telemetry row supplies one measured state of the bomb during a drop:
 | $v_y$ | `VelY_Vert` / `VelY` | Vertical velocity along `y`, in m/s |
 | $v_z$ | `VelZ` | Velocity along `z`, in m/s |
 | weapon | `Weapon_Name` / `Weapon` | Weapon profile used to group calibration data |
-| drop | separator or `DropID` | Individual release used to prevent derivatives crossing drop boundaries |
+| drop | `DropID` | Individual release used to prevent derivatives crossing drop boundaries |
 
-The legacy eight-column CSV in this repository has no `DropID`. The calibration script increments an internal drop number whenever it sees `--- NEW DROP ---`. The newer nine-column format can provide `DropID` directly.
+The CSV uses the nine-column format with `DropID` supplied directly by the telemetry logger. The `--- NEW DROP ---` separators and repeated headers are ignored while loading the data.
 
 The telemetry provides position and velocity; it does not directly provide mass, reference area, drag coefficient, air density, or speed of sound. Those quantities are supplied by the atmospheric model or absorbed into the empirical drag factor described below.
 
