@@ -1,4 +1,4 @@
-# DCS Weapon Ballistics Targeting
+# DCS Unguided Bombing Calculator
 
 Calibration pipeline and standalone targeting computer for unguided air-to-ground weapons in DCS World.
 
