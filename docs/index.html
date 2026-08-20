@@ -38,7 +38,6 @@
         }
         input:focus, select:focus { outline: none; border-color: var(--brand-blue); }
 
-        /* Remove invisible number spinners */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
         input[type=number] { -moz-appearance: textfield; }
@@ -46,7 +45,6 @@
         .input-group { display: flex; align-items: stretch; margin-bottom: 0.5rem; }
         .input-group input { flex: 1 1 0%; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
         
-        /* Dynamic Selectors */
         .input-group select { 
             width: auto; 
             flex-shrink: 0; 
@@ -60,7 +58,6 @@
 
         .unit-toggle { width: auto; padding: 0.3rem 0.5rem; font-size: 0.85rem; border-radius: 6px; }
 
-        /* Proportional grid for wind to give numbers more space */
         .wind-row { display: grid; grid-template-columns: 1.3fr 1.3fr 0.6fr; gap: 0.6rem; align-items: start; margin-top: 0.5rem; }
         .wind-header { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: -0.3rem; margin-top: 1rem; }
 
@@ -95,7 +92,7 @@
 <body>
 <div class="container">
     <h1>🎯 DCS Unguided Bombing Calculator</h1>
-    <div class="subtitle">DCS Point-Mass Kinematic Integrator</div>
+    <div class="subtitle">DCS Point-Mass RK4 Kinematic Integrator</div>
 
     <div class="grid">
         <div class="card">
@@ -117,7 +114,7 @@
 
             <label>Ground Speed</label> 
             <div class="input-group">
-                <input type="number" id="gs" value="950">
+                <input type="number" id="gs" value="800">
                 <select id="gs_u"><option value="kmh">km/h</option><option value="kts">kts</option></select>
             </div>
 
@@ -141,25 +138,21 @@
             
             <div class="wind-row wind-header"> <div>Altitude</div> <div>Speed</div> <div>Wind Dir (°)</div> </div>
             
-            <!-- Wind Layer 1 -->
             <div class="wind-row"> 
                 <div class="input-group"><input type="number" id="w1_a" value="8000"><select id="w1_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
                 <div class="input-group"><input type="number" id="w1_s" value="0"><select id="w1_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
                 <input type="number" id="w1_d" value="0">
             </div>
-            <!-- Wind Layer 2 -->
             <div class="wind-row"> 
                 <div class="input-group"><input type="number" id="w2_a" value="2000"><select id="w2_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
                 <div class="input-group"><input type="number" id="w2_s" value="0"><select id="w2_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
                 <input type="number" id="w2_d" value="0">
             </div>
-            <!-- Wind Layer 3 -->
             <div class="wind-row"> 
                 <div class="input-group"><input type="number" id="w3_a" value="500"><select id="w3_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
                 <div class="input-group"><input type="number" id="w3_s" value="0"><select id="w3_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
                 <input type="number" id="w3_d" value="0">
             </div>
-            <!-- Wind Layer 4 -->
             <div class="wind-row"> 
                 <div class="input-group"><input type="number" id="w4_a" value="10"><select id="w4_a_u"><option value="m">m</option><option value="ft">ft</option></select></div>
                 <div class="input-group"><input type="number" id="w4_s" value="0"><select id="w4_s_u"><option value="ms">m/s</option><option value="kts">kts</option></select></div>
@@ -181,7 +174,7 @@
             </div>
 
             <div class="card">
-                <h2>📡 GNS 430 Solution (Pilot Offset)</h2>
+                <h2>📡 Pilot Steering Offset</h2>
                 <div class="data-row"> <span class="data-label">Release Distance (DIS)</span> <span class="data-value val-blue" id="res_gns_dis">--</span> </div>
                 <div class="data-row"> <span class="data-label">Target Course (OBS)</span> <span class="data-value val-blue" id="res_gns_hdg">--</span> </div>
                 <div class="data-row"> <span class="data-label">Cross-Track (XTK)</span> <span class="data-value val-blue" id="res_gns_brg">--</span> </div>
@@ -224,16 +217,53 @@
         }
     });
 
+    // Auto-converts inputs cleanly when units are switched
     function setGlobalUnits() {
         let isImp = document.getElementById('global_unit').value === 'imperial';
         
-        ['alt_u', 'target_elev_u', 'w1_a_u', 'w2_a_u', 'w3_a_u', 'w4_a_u'].forEach(id => {
-            document.getElementById(id).value = isImp ? 'ft' : 'm';
+        ['alt', 'target_elev', 'w1_a', 'w2_a', 'w3_a', 'w4_a'].forEach(id => {
+            let input = document.getElementById(id);
+            let select = document.getElementById(id + '_u');
+            if (!input || !select) return;
+            let isCurrentlyImp = select.value === 'ft';
+            
+            if (isImp && !isCurrentlyImp) {
+                input.value = Math.round(input.value / FT_TO_M);
+                select.value = 'ft';
+            } else if (!isImp && isCurrentlyImp) {
+                input.value = Math.round(input.value * FT_TO_M);
+                select.value = 'm';
+            }
         });
-        document.getElementById('gs_u').value = isImp ? 'kts' : 'kmh';
-        ['w1_s_u', 'w2_s_u', 'w3_s_u', 'w4_s_u'].forEach(id => {
-            document.getElementById(id).value = isImp ? 'kts' : 'ms';
+
+        let gsIn = document.getElementById('gs');
+        let gsSel = document.getElementById('gs_u');
+        let gsIsImp = gsSel.value === 'kts';
+        if (isImp && !gsIsImp) {
+            gsIn.value = Math.round(gsIn.value / 1.852); 
+            gsSel.value = 'kts';
+        } else if (!isImp && gsIsImp) {
+            gsIn.value = Math.round(gsIn.value * 1.852); 
+            gsSel.value = 'kmh';
+        }
+
+        ['w1_s', 'w2_s', 'w3_s', 'w4_s'].forEach(id => {
+            let input = document.getElementById(id);
+            let select = document.getElementById(id + '_u');
+            let isCurrentlyImp = select.value === 'kts';
+            
+            if (isImp && !isCurrentlyImp) {
+                input.value = Math.round(input.value / KTS_TO_MS);
+                select.value = 'kts';
+            } else if (!isImp && isCurrentlyImp) {
+                input.value = Math.round(input.value * KTS_TO_MS);
+                select.value = 'ms';
+            }
         });
+
+        if (document.getElementById('results').style.display === "block") {
+            runSimulation();
+        }
     }
 
     const getVal = (id, type) => {
@@ -245,14 +275,11 @@
         return val; 
     };
 
-    function formatDistDual(meters) {
+    // FIXED: Clean Dual Formatting (Meters and NM only, strictly regardless of toggle)
+    function formatDistDualClean(meters) {
         let absM = Math.abs(meters);
-        let ft = absM / FT_TO_M;
-        if (absM >= 1000) {
-            let nm = absM / 1852;
-            return `${absM.toFixed(0)} m / ${ft.toFixed(0)} ft (${nm.toFixed(2)} NM)`;
-        }
-        return `${absM.toFixed(0)} m / ${ft.toFixed(0)} ft`;
+        let nm = absM / 1852;
+        return `${absM.toFixed(0)} m / ${nm.toFixed(2)} NM`;
     }
 
     function getWindAtAlt(alt, layers) {
@@ -269,28 +296,17 @@
                     let logU = Math.log(u.alt);
                     let f = (logAlt - logL) / (logU - logL);
                     
-                    return { 
-                        vx: l.vx + (u.vx - l.vx) * f, 
-                        vz: l.vz + (u.vz - l.vz) * f 
-                    };
+                    return { vx: l.vx + (u.vx - l.vx) * f, vz: l.vz + (u.vz - l.vz) * f };
                 } else {
                     let f = (alt - l.alt) / (u.alt - l.alt);
-                    
-                    return { 
-                        vx: l.vx + (u.vx - l.vx) * f, 
-                        vz: l.vz + (u.vz - l.vz) * f 
-                    };
+                    return { vx: l.vx + (u.vx - l.vx) * f, vz: l.vz + (u.vz - l.vz) * f };
                 }
             }
         }
         
         let bottomLayer = layers[layers.length-1];
         let f = alt / bottomLayer.alt; 
-        
-        return { 
-            vx: bottomLayer.vx * f, 
-            vz: bottomLayer.vz * f 
-        };
+        return { vx: bottomLayer.vx * f, vz: bottomLayer.vz * f };
     }
 
     function getKdFromLUT(mach, lut, stateTracker) {
@@ -329,7 +345,7 @@
         
         let windLayers = rawWind.sort((a, b) => b.alt - a.alt);
         windLayers.forEach(w => {
-            let rad = w.dir * (Math.PI / 180);
+            let rad = w.dir * (Math.PI / 180); 
             w.vx = w.spd * Math.sin(rad); 
             w.vz = w.spd * Math.cos(rad); 
         });
@@ -346,14 +362,22 @@
         const T0 = groundTemp + 273.15;
         let lutState = { index: Math.floor(weapon.dragTable.length / 2) };
 
-        while (pos.y > targetElev && time < 120) {
-            let wind = getWindAtAlt(pos.y, windLayers);
-            let vRelX = vel.x - wind.vx, vRelY = vel.y, vRelZ = vel.z - wind.vz;
+        function getAcceleration(p, v) {
+            let wind = getWindAtAlt(p.y, windLayers);
+            let vRelX = v.x - wind.vx, vRelY = v.y, vRelZ = v.z - wind.vz;
             let vMagSq = vRelX*vRelX + vRelY*vRelY + vRelZ*vRelZ;
             let vMag = Math.sqrt(vMagSq);
             
-            let T_alt = Math.max(T0 - (LAPSE_RATE * pos.y), 1);
-            let rho = (P0 * Math.pow(1 - (LAPSE_RATE * pos.y / T0), ATM_EXPONENT)) / (R * T_alt);
+            let T_alt, rho;
+            if (p.y <= 11000) {
+                T_alt = T0 - (LAPSE_RATE * p.y);
+                rho = (P0 * Math.pow(T_alt / T0, ATM_EXPONENT)) / (R * T_alt);
+            } else {
+                T_alt = T0 - (LAPSE_RATE * 11000); 
+                let p_11 = P0 * Math.pow(T_alt / T0, ATM_EXPONENT); 
+                rho = (p_11 * Math.exp(-G * (p.y - 11000) / (R * T_alt))) / (R * T_alt);
+            }
+            
             let mach = vMag / Math.sqrt(SOS_CONSTANT * T_alt);
             
             if (mach < machMinSeen) machMinSeen = mach;
@@ -362,12 +386,45 @@
 
             let Kd = getKdFromLUT(mach, weapon.dragTable, lutState);
             let aDragTotal = Kd * rho * vMagSq;
-            
-            vel.x -= (aDragTotal * (vRelX / vMag)) * dt; 
-            vel.y -= ((aDragTotal * (vRelY / vMag)) + G) * dt; 
-            vel.z -= (aDragTotal * (vRelZ / vMag)) * dt;
-            
-            pos.x += vel.x * dt; pos.y += vel.y * dt; pos.z += vel.z * dt;
+
+            return {
+                ax: - (aDragTotal * (vRelX / vMag)),
+                ay: - ((aDragTotal * (vRelY / vMag)) + G),
+                az: - (aDragTotal * (vRelZ / vMag))
+            };
+        }
+
+        while (pos.y > targetElev && time < 120) {
+            let a1 = getAcceleration(pos, vel);
+            let k1_p = { x: vel.x, y: vel.y, z: vel.z };
+            let k1_v = { x: a1.ax, y: a1.ay, z: a1.az };
+
+            let p2 = { x: pos.x + k1_p.x * dt * 0.5, y: pos.y + k1_p.y * dt * 0.5, z: pos.z + k1_p.z * dt * 0.5 };
+            let v2 = { x: vel.x + k1_v.x * dt * 0.5, y: vel.y + k1_v.y * dt * 0.5, z: vel.z + k1_v.z * dt * 0.5 };
+            let a2 = getAcceleration(p2, v2);
+            let k2_p = { x: v2.x, y: v2.y, z: v2.z };
+            let k2_v = { x: a2.ax, y: a2.ay, z: a2.az };
+
+            let p3 = { x: pos.x + k2_p.x * dt * 0.5, y: pos.y + k2_p.y * dt * 0.5, z: pos.z + k2_p.z * dt * 0.5 };
+            let v3 = { x: vel.x + k2_v.x * dt * 0.5, y: vel.y + k2_v.y * dt * 0.5, z: vel.z + k2_v.z * dt * 0.5 };
+            let a3 = getAcceleration(p3, v3);
+            let k3_p = { x: v3.x, y: v3.y, z: v3.z };
+            let k3_v = { x: a3.ax, y: a3.ay, z: a3.az };
+
+            let p4 = { x: pos.x + k3_p.x * dt, y: pos.y + k3_p.y * dt, z: pos.z + k3_p.z * dt };
+            let v4 = { x: vel.x + k3_v.x * dt, y: vel.y + k3_v.y * dt, z: vel.z + k3_v.z * dt };
+            let a4 = getAcceleration(p4, v4);
+            let k4_p = { x: v4.x, y: v4.y, z: v4.z };
+            let k4_v = { x: a4.ax, y: a4.ay, z: a4.az };
+
+            pos.x += (dt / 6.0) * (k1_p.x + 2*k2_p.x + 2*k3_p.x + k4_p.x);
+            pos.y += (dt / 6.0) * (k1_p.y + 2*k2_p.y + 2*k3_p.y + k4_p.y);
+            pos.z += (dt / 6.0) * (k1_p.z + 2*k2_p.z + 2*k3_p.z + k4_p.z);
+
+            vel.x += (dt / 6.0) * (k1_v.x + 2*k2_v.x + 2*k3_v.x + k4_v.x);
+            vel.y += (dt / 6.0) * (k1_v.y + 2*k2_v.y + 2*k3_v.y + k4_v.y);
+            vel.z += (dt / 6.0) * (k1_v.z + 2*k2_v.z + 2*k3_v.z + k4_v.z);
+
             time += dt;
         }
 
@@ -376,12 +433,9 @@
         let forwardRange = travelDist * Math.cos(hdgDiff);
         let crosswindDrift = travelDist * Math.sin(hdgDiff);
 
-        // --- NEW OFFSET LOGIC ---
-        // 1. Where did the bomb physically drift?
         let bombDriftRight = crosswindDrift > 0;
         let bombDriftDir = bombDriftRight ? "R" : "L";
         
-        // 2. Where should the pilot fly to compensate?
         let pilotOffsetRight = !bombDriftRight;
         let pilotOffsetDir = pilotOffsetRight ? "R" : "L";
         
@@ -393,9 +447,9 @@
         let impactKts = impactKmh * 0.539957;
         let mach = impactSpeedMs / Math.sqrt(SOS_CONSTANT * finalT_alt);
 
-        // Display the Bomb's physical drift in Kinematics
-        document.getElementById('res_range').innerText = formatDistDual(forwardRange);
-        document.getElementById('res_drift').innerText = formatDistDual(crosswindDrift) + " " + bombDriftDir;
+        // UI Text assignments using the new clean formatter
+        document.getElementById('res_range').innerText = formatDistDualClean(forwardRange);
+        document.getElementById('res_drift').innerText = formatDistDualClean(crosswindDrift) + " " + bombDriftDir;
         document.getElementById('res_tof').innerText = time.toFixed(1) + " s";
         document.getElementById('res_impact_v').innerText = `${impactKmh.toFixed(0)} km/h / ${impactKts.toFixed(0)} kts (${mach.toFixed(2)} M)`;
 
@@ -408,23 +462,21 @@
             warnEl.style.display = "none";
         }
         
-        // Display the Pilot's required offset in GNS 430 Solution
-        document.getElementById('res_gns_dis').innerText = formatDistDual(forwardRange);
+        document.getElementById('res_gns_dis').innerText = formatDistDualClean(forwardRange);
         document.getElementById('res_gns_hdg').innerText = "OBS " + strTargetHdg;
-        document.getElementById('res_gns_brg').innerText = formatDistDual(crosswindDrift) + " " + pilotOffsetDir;
+        document.getElementById('res_gns_brg').innerText = formatDistDualClean(crosswindDrift) + " " + pilotOffsetDir;
 
-        // Generate the correctly oriented briefing
         let briefText = `<b>[${weapon.name}]</b> Configure GNS 430 to OBS mode on <span class="hl">${strTargetHdg}</span>. `;
         if (Math.abs(crosswindDrift) < 1.0) {
             briefText += `Maintain level flight and release when GPS distance (DIS) matches your forward range.`;
         } else {
-            briefText += `Maneuver until Cross-Track Error (XTK) reads <span class="hl">${formatDistDual(crosswindDrift)}</span> (${pilotOffsetDir}), then fly parallel. Target over your <span class="hl">${pilotOffsetRight ? 'left' : 'right'}</span> canopy. Release when DIS matches your forward range.`;
+            briefText += `Maneuver until Cross-Track Error (XTK) reads <span class="hl">${formatDistDualClean(crosswindDrift)}</span> (${pilotOffsetDir}), then fly parallel. Target over your <span class="hl">${pilotOffsetRight ? 'left' : 'right'}</span> canopy. Release when DIS matches your forward range.`;
         }
 
         if (weapon.dispersion) {
             let cep50 = forwardRange * weapon.dispersion.cep50_ratio;
             let cep90 = forwardRange * weapon.dispersion.cep90_ratio;
-            briefText += `<br><br><span style="color: var(--data-orange);"><b>🎯 Dispersion Footprint:</b></span> 50% of bombs will land within a <b>${formatDistDual(cep50)}</b> radius. To guarantee a 90% probability of impact, the target must fall within a <b>${formatDistDual(cep90)}</b> radius.`;
+            briefText += `<br><br><span style="color: var(--data-orange);"><b>🎯 Dispersion Footprint:</b></span> 50% of bombs will land within a <b>${formatDistDualClean(cep50)}</b> radius. To guarantee a 90% probability of impact, the target must fall within a <b>${formatDistDualClean(cep90)}</b> radius.`;
         }
 
         document.getElementById('dynamic_briefing').innerHTML = briefText;
