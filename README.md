@@ -494,4 +494,4 @@ The browser application is client-side and requires `docs/weapon_drag_database.j
 
 ## License and contributions
 
-See the repository license for usage terms. Contributions that improve telemetry quality, calibration validation, numerical stability, documentation, or test coverage are welcome through pull requests.
+Contributions that improve telemetry quality, calibration validation, numerical stability, documentation, or test coverage are welcome through pull requests.
