@@ -1,269 +1,497 @@
 # DCS Unguided Bombing Calculator
 
 [![Validate](https://github.com/amanhooda98/dcs-unguided-bombing-calculator/actions/workflows/validate.yml/badge.svg)](https://github.com/amanhooda98/dcs-unguided-bombing-calculator/actions/workflows/validate.yml)
-[![Live Calculator](https://img.shields.io/badge/live-calculator-2ea44f?logo=github)](https://amanhooda98.github.io/dcs-unguided-bombing-calculator/)
 
-Calibration pipeline and standalone targeting computer for unguided air-to-ground weapons in DCS World.
+A browser-based, simulator-oriented trajectory calculator for unguided bombs in DCS World. The project uses recorded DCS telemetry to fit an empirical, Mach-dependent drag model and then predicts a bomb's trajectory from a user-defined release state.
 
-## What it does
+> **Scope:** This is a DCS World simulation tool, not a real-world weapons calculator. Its accuracy depends on the quality of the telemetry, the calibration envelope, the atmosphere and wind assumptions, and the release inputs.
 
-1. `data/raw/bomb_flight_telemetry.csv` contains recorded bomb trajectories exported from DCS World.
-2. `calibration/calibrate_weapon_drag.py` groups telemetry into individual drops, smooths velocity with a Savitzky-Golay filter, differentiates each drop, removes gravity from the vertical acceleration, and estimates Mach-dependent drag (`Kd`).
-3. The script bins each weapon's drag values by Mach number, updates `data/processed/weapon_drag_database.json`, and emits the browser-ready `docs/weapon_drag_database.js` database.
-4. `docs/index.html` loads that database and integrates a three-degree-of-freedom point-mass trajectory at 10 ms steps. It accounts for relative air velocity, ISA-style density and speed of sound, four wind layers, gravity, and interpolated weapon drag coefficients.
-5. The calculator reports forward release range, crosswind drift, time of flight, impact velocity, and a GNS 430-style OBS/XTK execution brief. It warns when the simulated Mach range exceeds calibrated telemetry.
+## Live calculator
 
-## Science and 3-DoF point-mass model
+Open the [GitHub Pages calculator](https://amanhooda98.github.io/dcs-unguided-bombing-calculator/), select a weapon profile, enter the release and atmospheric conditions, and choose **Generate Firing Solution**.
 
-The calculator treats the bomb as a point mass with three translational degrees of freedom: position and velocity along the DCS `x`, `y`, and `z` axes. It does not simulate bomb attitude, fin forces, lift, spin, or rotation. The bomb is affected by gravity and aerodynamic drag, while the aircraft's release state and the atmosphere determine its initial conditions.
+## What the project does
 
-### 1. DCS telemetry inputs
+1. Reads recorded bomb-flight telemetry from `data/raw/bomb_flight_telemetry.csv`.
+2. Groups samples by individual drop and sorts them by time.
+3. Smooths measured velocity and differentiates it to estimate acceleration.
+4. Removes gravity from the vertical acceleration and infers aerodynamic drag.
+5. Converts the inferred drag into an empirical `Kd(M)` lookup table for each weapon.
+6. Loads the generated table in the browser.
+7. Integrates a three-degree-of-freedom point-mass trajectory using gravity, wind, atmospheric density, and Mach-dependent drag.
+8. Reports forward range, cross-track drift, time of flight, impact velocity, impact Mach, and a pilot-style steering brief.
 
-Each telemetry row supplies one measured state of the bomb during a drop:
+```text
+DCS telemetry CSV
+      ↓
+Clean and group individual drops
+      ↓
+Smooth velocity → differentiate → remove gravity
+      ↓
+Estimate drag factor Kd at each Mach sample
+      ↓
+Bin and interpolate Kd(M) → weapon database
+      ↓
+Browser loads generated database
+      ↓
+Create release state and wind profile
+      ↓
+Integrate trajectory with RK4, Δt = 0.01 s
+      ↓
+Resolve final position into range and cross-track drift
+```
 
-| Model value | DCS CSV column | Meaning |
-| --- | --- | --- |
-| $t$ | `Time_s` / `Time` | Time since the drop began, in seconds |
-| $x$ | `PosX` | DCS position on the first horizontal axis, in metres |
-| $y$ | `PosY_Alt` | DCS altitude, in metres |
-| $z$ | `PosZ` | DCS position on the second horizontal axis, in metres |
-| $v_x$ | `VelX` | Velocity along `x`, in m/s |
-| $v_y$ | `VelY_Vert` / `VelY` | Vertical velocity along `y`, in m/s |
-| $v_z$ | `VelZ` | Velocity along `z`, in m/s |
-| weapon | `Weapon_Name` / `Weapon` | Weapon profile used to group calibration data |
-| drop | `DropID` | Individual release used to prevent derivatives crossing drop boundaries |
+## Model assumptions
 
-The CSV uses the nine-column format with `DropID` supplied directly by the telemetry logger. The `--- NEW DROP ---` separators and repeated headers are ignored while loading the data.
+The calculator is a **3-DoF point-mass model**. It tracks only position and translational velocity along the DCS world axes. It does not model attitude, lift, fin forces, spin, tumbling, fuze behaviour, terrain collision, or a weapon-specific release impulse.
 
-The telemetry provides position and velocity; it does not directly provide mass, reference area, drag coefficient, air density, or speed of sound. Those quantities are supplied by the atmospheric model or absorbed into the empirical drag factor described below.
+The model assumes that the bomb is acted on by:
 
-### 2. Extracting aerodynamic drag from DCS data
+- Gravity.
+- Aerodynamic drag opposite the relative airflow.
+- A user-provided horizontal wind profile.
+- An idealized atmosphere whose temperature, pressure, density, and speed of sound depend on altitude.
 
-Raw simulator samples contain frame-to-frame noise. For each drop, the script first applies a Savitzky-Golay filter to each velocity component, producing $v_{x,s}$, $v_{y,s}$, and $v_{z,s}$. It then estimates acceleration from adjacent samples:
+## DCS coordinate system and telemetry
+
+The repository uses the DCS world Cartesian convention:
+
+- `x`: north, in metres.
+- `y`: up/altitude, in metres.
+- `z`: east, in metres.
+- Velocity components are in metres per second.
+- Time is in seconds.
+
+The telemetry fields used by the calibration process are:
+
+| Model quantity | CSV field | Meaning |
+|---|---|---|
+| `t` | `Time_s` or `Time` | Seconds since release |
+| `x` | `PosX` | North position/displacement, m |
+| `y` | `PosY_Alt` | Altitude, m |
+| `z` | `PosZ` | East position/displacement, m |
+| `vx` | `VelX` | North velocity, m/s |
+| `vy` | `VelY_Vert` or `VelY` | Vertical velocity, m/s |
+| `vz` | `VelZ` | East velocity, m/s |
+| weapon | `Weapon_Name` or `Weapon` | Weapon identifier |
+| drop | `DropID` | Individual bomb release |
+
+Separators such as `--- NEW DROP ---` and repeated headers are ignored. Keeping drops separate is essential: a derivative must never connect the end of one bomb release to the beginning of another.
+
+## 1. Calibrating drag from DCS telemetry
+
+### 1.1 Smooth the measured velocity
+
+Frame-level simulator data contains numerical noise. For each drop, the calibration script applies a third-order Savitzky–Golay filter to each velocity component:
 
 $$
-a_x = \frac{v_{x,s}(t_i)-v_{x,s}(t_{i-1})}{t_i-t_{i-1}},\quad
-a_y = \frac{v_{y,s}(t_i)-v_{y,s}(t_{i-1})}{t_i-t_{i-1}},\quad
-a_z = \frac{v_{z,s}(t_i)-v_{z,s}(t_{i-1})}{t_i-t_{i-1}}
+\tilde v_x=S(v_x),\qquad \tilde v_y=S(v_y),\qquad \tilde v_z=S(v_z)
 $$
 
-The smoothed total speed is:
+The smoothed velocity is used for differentiation; it is not intended to change the underlying physical trajectory.
+
+### 1.2 Differentiate velocity
+
+For adjacent samples:
 
 $$
-V = \sqrt{v_{x,s}^2+v_{y,s}^2+v_{z,s}^2}
+\Delta t=t_i-t_{i-1}
 $$
 
-The measured vertical acceleration includes gravity. With the repository's positive-downward/altitude convention, the script removes gravity from the acceleration estimate by calculating:
-
 $$
-a_{y,drag}=a_y+g
-$$
-
-where $g=9.81\ \mathrm{m/s^2}$. The magnitude attributed to drag is then:
-
-$$
-a_{drag}=\sqrt{a_x^2+a_{y,drag}^2+a_z^2}
+ a_x=\frac{\tilde v_{x,i}-\tilde v_{x,i-1}}{\Delta t},\qquad
+ a_y=\frac{\tilde v_{y,i}-\tilde v_{y,i-1}}{\Delta t},\qquad
+ a_z=\frac{\tilde v_{z,i}-\tilde v_{z,i-1}}{\Delta t}
 $$
 
-The usual drag equation is:
+The measured acceleration contains both gravity and aerodynamic drag. Because positive `y` is upward, gravity is `-g`; therefore the drag-only vertical component is:
 
 $$
-F_D=\frac{1}{2}\rho V^2 C_D A
+ a_{y,drag}=a_y+g
 $$
 
-and, after dividing by bomb mass $m$:
+with:
 
 $$
-a_D=\frac{C_D A}{2m}\rho V^2
+ g=9.81\ \mathrm{m/s^2}
 $$
 
-This project combines the unknown weapon geometry, mass, and drag coefficient into one empirical ballistic factor:
+The inferred drag acceleration magnitude is:
 
 $$
-a_D=K_d(M)\rho V^2
+ a_D=\sqrt{a_x^2+a_{y,drag}^2+a_z^2}
 $$
 
-Therefore each valid telemetry sample produces:
+### 1.3 Derive the empirical drag factor
+
+The conventional drag force is:
 
 $$
-K_d=\frac{a_{drag}}{\rho V^2}
+ F_D=\frac12\rho V^2 C_D A
 $$
 
-`Kd` is not the dimensionless aerodynamic $C_D$ by itself. It represents the complete drag response per unit mass for the weapon as observed in DCS. The script discards invalid values and samples below 50 m/s because division by $V^2$ becomes unstable near impact or near-zero speed.
+Using Newton's second law, `F = ma`:
 
-### 3. Atmosphere and Mach number
+$$
+ a_D=\frac{F_D}{m}=\frac{C_DA}{2m}\rho V^2
+$$
 
-The calibration script uses a standard sea-level reference atmosphere: $T_0=288.15\ \mathrm{K}$, $p_0=101325\ \mathrm{Pa}$, gas constant $R=287.05\ \mathrm{J/(kg\cdot K)}$, and lapse rate $L=0.0065\ \mathrm{K/m}$. At altitude $h$:
+The telemetry does not independently provide bomb mass `m`, reference area `A`, or aerodynamic coefficient `CD`. The project therefore combines them into one fitted quantity:
+
+$$
+\boxed{K_d(M)=\frac{C_D(M)A}{2m}}
+$$
+
+The calibration equation becomes:
+
+$$
+ a_D=K_d(M)\rho V^2
+$$
+
+and each valid telemetry sample produces:
+
+$$
+\boxed{K_d=\frac{a_D}{\rho V^2}}
+$$
+
+`Kd` is **not** the dimensionless coefficient `CD`. It is an empirical area-to-mass drag factor whose value varies with Mach number and represents the weapon's observed drag response in DCS.
+
+### Worked substitution
+
+For an illustrative sample:
+
+- Drag acceleration: `aD = 18 m/s²`
+- Air density: `ρ = 0.90 kg/m³`
+- Speed: `V = 250 m/s`
+
+$$
+K_d=\frac{18}{0.90\times250^2}
+$$
+
+$$
+K_d=\frac{18}{56,250}=0.00032\ \mathrm{m^2/kg}
+$$
+
+This is an example of the arithmetic. The actual calibration uses values calculated from every valid telemetry row.
+
+Samples with invalid values or total speed below `50 m/s` are discarded because dividing by `V²` becomes unstable at low speed.
+
+## 2. Atmosphere and Mach number
+
+The calibration and flight model use an ISA-style atmosphere. The reference constants are:
+
+| Constant | Value |
+|---|---:|
+| Sea-level temperature, `T0` | `288.15 K` for calibration; user-entered °C converted to K in the browser |
+| Sea-level pressure, `p0` | `101325 Pa` |
+| Specific gas constant, `R` | `287.05 J/(kg·K)` |
+| Gravity, `g` | `9.81 m/s²` |
+| Lapse rate, `L` | `0.0065 K/m` |
+| Ratio of specific heats, `γ` | `1.4` |
+
+Below 11 km, temperature is:
 
 $$
 T(h)=T_0-Lh
 $$
 
-$$
-p(h)=p_0\left(1-\frac{Lh}{T_0}\right)^{g/(RL)}
-$$
+Pressure is:
 
 $$
-\rho(h)=\frac{p(h)}{R T(h)}
+ p(h)=p_0\left(1-\frac{Lh}{T_0}\right)^{g/(RL)}
 $$
 
-The local speed of sound is calculated using the ratio of specific heats $\gamma=1.4$:
+Density follows from the ideal-gas relationship:
 
 $$
-a(h)=\sqrt{\gamma R T(h)}
+\rho(h)=\frac{p(h)}{RT(h)}
+$$
+
+The local speed of sound is:
+
+$$
+ a(h)=\sqrt{\gamma RT(h)}
 $$
 
 Mach number is:
 
 $$
-M=\frac{V}{a(h)}
+ M=\frac{V}{a(h)}
 $$
 
-Mach is used instead of raw speed because compressibility and transonic shock effects make a bomb's drag change significantly around Mach 1. The script groups samples into Mach bins of width 0.02 and averages their $K_d$ values. The result is stored in `data/processed/weapon_drag_database.json` and copied into the browser-ready JavaScript file.
+Mach is used as the lookup variable because drag changes with compressibility, particularly near the transonic region. The calibration script bins samples by Mach and stores the mean `Kd` for each bin. The browser linearly interpolates between adjacent lookup-table points.
 
-### 4. Release state used by the calculator
+## 3. Release state and wind
 
-The browser calculator does not replay a telemetry row as the release state. It takes the pilot's planned release values from the form:
-
-| Calculator input | Model value | Unit/conversion |
-| --- | --- | --- |
-| Release Altitude | initial $y$ | metres MSL |
-| True Airspeed | initial speed magnitude | km/h converted to m/s by dividing by 3.6 |
-| Pitch / Dive Angle | initial flight-path angle | degrees converted to radians |
-| Target Attack Heading | horizontal direction | degrees converted to radians |
-| Target Elevation | stopping altitude | metres MSL |
-| Base Temperature | $T_0$ for the flight model | degrees Celsius converted to Kelvin |
-| Four wind rows | wind-layer speeds and directions | m/s and degrees |
-| Selected weapon | $K_d(M)$ look-up table | loaded from `docs/weapon_drag_database.js` |
-
-The initial velocity is resolved into the DCS axes:
+All user inputs are converted to SI units before integration:
 
 $$
-v_x=V_0\cos(-\theta)\sin(\psi),\quad
-v_y=V_0\sin(-\theta),\quad
-v_z=V_0\cos(-\theta)\cos(\psi)
+V_{m/s}=\frac{V_{km/h}}{3.6}=V_{kt}\times0.514444
 $$
 
-where $V_0$ is the entered true airspeed, $\theta$ is pitch/dive angle, and $\psi$ is heading. The negative sign follows the calculator's screen convention for pitch and vertical `y` velocity.
-
-### 5. Wind-relative drag and numerical integration
-
-The four entered wind directions are converted to horizontal components:
+For initial speed `V0`, heading `ψ`, and the calculator's pitch/dive input `θ`, the initial velocity is resolved into DCS axes:
 
 $$
-w_x=W\sin(\phi),\qquad w_z=W\cos(\phi)
-$$
-
-The calculator interpolates between the 8000 m, 2000 m, 500 m, and 10 m layers. Between 500 m and 10 m it uses a logarithmic boundary-layer profile; below 10 m it linearly reduces wind toward zero. At every 0.01-second step, drag uses air-relative velocity:
-
-$$
-v_{rel,x}=v_x-w_x,\quad v_{rel,y}=v_y,\quad v_{rel,z}=v_z-w_z
+ v_x=V_0\cos(-\theta)\sin\psi
 $$
 
 $$
-V_{rel}=\sqrt{v_{rel,x}^2+v_{rel,y}^2+v_{rel,z}^2}
-$$
-
-The calculator recomputes temperature, pressure, density, speed of sound, Mach, and interpolated $K_d$ at the bomb's current altitude and relative speed. It then calculates:
-
-$$
-a_{drag}=K_d\rho V_{rel}^2
-$$
-
-and applies drag opposite the relative-air-velocity vector:
-
-$$
-v_x\leftarrow v_x-a_{drag}\frac{v_{rel,x}}{V_{rel}}\Delta t
+ v_y=V_0\sin(-\theta)
 $$
 
 $$
-v_y\leftarrow v_y-\left(a_{drag}\frac{v_{rel,y}}{V_{rel}}+g\right)\Delta t
+ v_z=V_0\cos(-\theta)\cos\psi
+$$
+
+Angles are converted from degrees to radians. The negative pitch sign is intentional: it converts the screen input convention into the DCS vertical-velocity convention.
+
+Each wind layer is converted from speed and direction into horizontal components:
+
+$$
+ w_x=W\sin\phi,\qquad w_z=W\cos\phi
+$$
+
+The four layers are sorted by altitude. The calculator uses linear interpolation between the upper layers, logarithmic interpolation between 500 m and 10 m, and a linear reduction toward zero below 10 m. This is an approximation of the near-surface wind profile, not a full atmospheric boundary-layer model.
+
+## 4. Trajectory equations
+
+At every integration step, the solver obtains the wind at the bomb's current altitude and subtracts it from the bomb's ground/world velocity:
+
+$$
+\mathbf v_{rel}=\mathbf v-\mathbf w
 $$
 
 $$
-v_z\leftarrow v_z-a_{drag}\frac{v_{rel,z}}{V_{rel}}\Delta t
+V_{rel}=\sqrt{(v_x-w_x)^2+v_y^2+(v_z-w_z)^2}
 $$
 
-Position is advanced using the updated velocity:
+The solver then calculates local temperature, density, speed of sound, Mach, and interpolated `Kd`:
 
 $$
-x\leftarrow x+v_x\Delta t,\quad
-y\leftarrow y+v_y\Delta t,\quad
-z\leftarrow z+v_z\Delta t
+ a_D=K_d(M)\rho V_{rel}^2
 $$
 
-The loop ends when $y$ reaches target elevation or after 120 seconds. The final horizontal displacement is converted into forward range and crosswind drift relative to the entered heading. The calculator also reports time of flight, impact speed, impact Mach, and whether any part of the trajectory went outside the calibrated Mach range.
+Drag acts opposite the relative-airflow vector. The acceleration is:
 
-### 6. What is measured versus assumed
+$$
+\boxed{\mathbf a=-a_D\frac{\mathbf v_{rel}}{V_{rel}}+(0,-g,0)}
+$$
 
-| Value | Origin in this project |
-| --- | --- |
-| Position, velocity, time | Directly from DCS telemetry during calibration |
-| Weapon identity and drop grouping | DCS telemetry fields or drop separators |
-| Smoothed acceleration | Derived from telemetry velocity and time |
-| Gravity $g$ | Fixed model constant: 9.81 m/s² |
-| Temperature, pressure, density | Derived atmospheric model |
-| Speed of sound and Mach | Derived from atmospheric temperature and speed |
-| $K_d(M)$ | Empirically derived from DCS telemetry, then binned by Mach |
-| Release altitude, speed, pitch, heading | User-entered planned aircraft state |
-| Wind profile | User-entered four-layer approximation |
-| Time step | Fixed numerical setting: 0.01 s |
-| Bomb mass, area, and $C_D$ | Not separately available; absorbed into $K_d$ |
+Component form:
 
-This distinction is important: the DCS data calibrates the weapon's observed drag response, but the calculator still supplies the release scenario and environmental assumptions. Calibration data should ideally be collected across the intended speed and altitude envelope. The current calibration path also does not subtract wind from telemetry before estimating $K_d$, so strong calibration winds can be partially absorbed into the fitted drag values.
+$$
+ a_x=-a_D\frac{v_x-w_x}{V_{rel}}
+$$
 
-## Run the calibration pipeline
+$$
+ a_y=-a_D\frac{v_y}{V_{rel}}-g
+$$
 
-From the repository root, with Python 3.11 or newer and [uv](https://docs.astral.sh/uv/) installed:
+$$
+ a_z=-a_D\frac{v_z-w_z}{V_{rel}}
+$$
+
+This is why wind is not simply added as a fixed sideways distance: wind changes the relative airflow, which changes both the magnitude and direction of drag throughout the flight.
+
+## 5. Numerical integration: classical RK4
+
+The state vector is:
+
+$$
+\mathbf s=(x,y,z,v_x,v_y,v_z)
+$$
+
+The equations of motion can be written as:
+
+$$
+\dot x=v_x,\quad \dot y=v_y,\quad \dot z=v_z
+$$
+
+$$
+\dot v_x=a_x,\quad \dot v_y=a_y,\quad \dot v_z=a_z
+$$
+
+The browser uses classical fourth-order Runge–Kutta with a fixed step of:
+
+$$
+\Delta t=0.01\ \mathrm{s}
+$$
+
+For `s' = f(t,s)`, one RK4 step is:
+
+$$
+ k_1=f(t,s)
+$$
+
+$$
+ k_2=f\left(t+\frac{\Delta t}{2},s+\frac{k_1\Delta t}{2}\right)
+$$
+
+$$
+ k_3=f\left(t+\frac{\Delta t}{2},s+\frac{k_2\Delta t}{2}\right)
+$$
+
+$$
+ k_4=f(t+\Delta t,s+k_3\Delta t)
+$$
+
+$$
+\boxed{s_{next}=s+\frac{\Delta t}{6}(k_1+2k_2+2k_3+k_4)}
+$$
+
+The implementation evaluates acceleration at the four intermediate positions and velocities before applying the weighted update. This is more accurate and stable for this changing-drag problem than a single Euler step.
+
+### One-step substitution
+
+Suppose one component currently has:
+
+- `vx = 200 m/s`
+- `ax = -4 m/s²`
+- `Δt = 0.01 s`
+
+The first RK4 position slope is:
+
+$$
+ k_{1,x}=v_x=200
+$$
+
+The first half-step position estimate is:
+
+$$
+ x_2=x+\frac{200\times0.01}{2}=x+1\ \mathrm{m}
+$$
+
+The solver performs the same calculation for all six state variables, recalculates acceleration at each intermediate state, and then applies the RK4 weighted average.
+
+Integration stops when the bomb reaches the target elevation (`y <= target elevation`) or after 120 seconds.
+
+## 6. Impact point and pilot outputs
+
+At the end of integration, the final horizontal displacement is:
+
+$$
+D=\sqrt{x^2+z^2}
+$$
+
+The angular difference between the displacement vector and the entered heading is:
+
+$$
+\Delta\psi=\operatorname{atan2}(x,z)-\psi
+$$
+
+The calculator resolves the displacement into forward range and cross-track drift:
+
+$$
+R_f=D\cos\Delta\psi
+$$
+
+$$
+D_c=D\sin\Delta\psi
+$$
+
+Positive cross-track displacement is reported as right (`R`); negative displacement is reported as left (`L`). The pilot correction reverses this sign: if the bomb lands right of the target line, the aircraft must offset left, and vice versa.
+
+The displayed outputs are:
+
+- **Forward range:** distance to travel along the intended heading before release.
+- **Cross-track drift:** lateral displacement caused by the release geometry and wind.
+- **Time of flight:** simulated time until target elevation is reached.
+- **Impact velocity:** final speed and Mach number.
+- **DIS:** forward release distance for the GNS-style brief.
+- **OBS:** target course/heading.
+- **XTK:** cross-track correction.
+
+The target is treated as an altitude crossing, not an intersection with a terrain mesh.
+
+## 7. Dispersion estimate
+
+For each calibrated drop, the calibration script calculates range and cross-track displacement relative to the initial horizontal velocity. Drops are grouped by rounded initial speed. When a group contains multiple drops, the script estimates standard deviations and normalizes them by mean travel distance.
+
+The resulting empirical values are stored as `cep50_ratio` and `cep90_ratio` and are used to display a rough dispersion footprint.
+
+This is not a formal weapon CEP study. It assumes the recorded dispersion is representative of the future release scenario and does not independently model uncertainty in altitude, speed, wind, heading, or pilot input.
+
+## 8. Measured data, fitted values, and assumptions
+
+| Quantity | Source |
+|---|---|
+| Position, velocity, and time | DCS telemetry |
+| Weapon identity and drop grouping | Telemetry fields and drop separators |
+| Acceleration | Smoothed velocity differentiated over time |
+| Gravity | Fixed `9.81 m/s²` constant |
+| Temperature, pressure, and density | Atmospheric equations |
+| Speed of sound and Mach | Atmospheric temperature and gas model |
+| `Kd(M)` | Empirical fit from DCS telemetry |
+| Release altitude, speed, pitch, and heading | User input |
+| Wind profile | Four user-entered layers |
+| Integration | Classical RK4, `0.01 s` step |
+| Bomb mass, reference area, and `CD` separately | Not available; absorbed into `Kd` |
+
+### Limitations
+
+- Calibration currently uses recorded world/ground velocity directly; it does not explicitly subtract calibration wind before fitting `Kd`.
+- Strong calibration winds may therefore be partially absorbed into the fitted drag response.
+- The atmosphere is idealized and does not include humidity, weather, or map-specific conditions.
+- Lookup-table values are clamped at the first and last calibrated Mach points. The UI warns when the simulated trajectory leaves that envelope.
+- The target is an altitude crossing rather than terrain collision.
+- The model is deterministic and does not randomly sample release errors.
+- The result is only as reliable as the calibration data and the similarity between the calibration and planned release conditions.
+
+## Calibration and development
+
+Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+
+Install dependencies:
 
 ```bash
 uv sync
+```
+
+Regenerate the weapon database:
+
+```bash
 uv run python calibration/calibrate_weapon_drag.py
 ```
 
-The command overwrites `data/processed/weapon_drag_database.json` and `docs/weapon_drag_database.js` with the latest LUTs. Paths are resolved relative to the script, so the command can be run from any working directory.
-
-The committed `uv.lock` pins the complete Python dependency graph for reproducible calibration runs. Use `uv sync --locked` in CI or when you want to ensure the environment matches the lockfile exactly.
-
-## Validation
-
-Run the project checks locally:
+Run tests:
 
 ```bash
 uv run python -m unittest discover --start-directory tests --pattern 'test_*.py'
+```
+
+Validate that calibration produces reproducible generated artifacts:
+
+```bash
 uv run python calibration/calibrate_weapon_drag.py
 git diff --exit-code -- data/processed/weapon_drag_database.json docs/weapon_drag_database.js
 ```
 
-The GitHub Actions validation workflow runs these artifact checks, verifies Python and JavaScript syntax, and confirms that recalibration produces no uncommitted LUT changes. The Pages workflow publishes `docs/` from `main`.
+The calibration script writes:
 
-## Run the targeting computer
+- `data/processed/weapon_drag_database.json`
+- `docs/weapon_drag_database.js`
 
-Open `docs/index.html` in a browser, or use the [live GitHub Pages calculator](https://amanhooda98.github.io/dcs-unguided-bombing-calculator/). It is a zero-dependency client-side application; `docs/weapon_drag_database.js` must remain beside the HTML file.
+The browser application is client-side and requires `docs/weapon_drag_database.js` to remain beside `docs/index.html`.
 
 ## Repository layout
 
 ```text
 .
 ├── calibration/
-│   └── calibrate_weapon_drag.py       # Telemetry cleaning and drag-LUT generation
+│   └── calibrate_weapon_drag.py
 ├── data/
-│   ├── raw/bomb_flight_telemetry.csv  # DCS-exported flight samples
+│   ├── raw/bomb_flight_telemetry.csv
 │   └── processed/weapon_drag_database.json
 ├── docs/
-│   ├── index.html                      # GitHub Pages entry point
-│   └── weapon_drag_database.js        # Generated browser data
-├── .github/workflows/validate.yml
+│   ├── index.html
+│   └── weapon_drag_database.js
 ├── tests/test_artifacts.py
-├── uv.lock
+├── .github/workflows/validate.yml
 ├── pyproject.toml
+├── uv.lock
 └── README.md
 ```
 
-## Repository contents
+## License and contributions
 
-- `data/raw/bomb_flight_telemetry.csv`: raw DCS trajectory telemetry.
-- `calibration/calibrate_weapon_drag.py`: aerodynamic extraction and LUT generator.
-- `data/processed/weapon_drag_database.json`: persistent human-readable weapon database.
-- `docs/weapon_drag_database.js`: generated JavaScript database consumed by the calculator.
-- `docs/index.html`: responsive targeting interface and GitHub Pages entry point.
+Contributions that improve telemetry quality, calibration validation, numerical stability, documentation, or test coverage are welcome through pull requests.
