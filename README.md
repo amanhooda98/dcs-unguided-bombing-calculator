@@ -198,7 +198,7 @@ $$
 Pressure is:
 
 $$
- p(h)=p_0\left(1-\frac{Lh}{T_0}\right)^{g/(RL)}
+p(h)=p_0\left(1-\frac{Lh}{T_0}\right)^{g/(RL)}
 $$
 
 Density follows from the ideal-gas relationship:
@@ -210,13 +210,13 @@ $$
 The local speed of sound is:
 
 $$
- a(h)=\sqrt{\gamma RT(h)}
+a(h)=\sqrt{\gamma RT(h)}
 $$
 
 Mach number is:
 
 $$
- M=\frac{V}{a(h)}
+M=\frac{V}{a(h)}
 $$
 
 Mach is used as the lookup variable because drag changes with compressibility, particularly near the transonic region. The calibration script bins samples by Mach and stores the mean `Kd` for each bin. The browser linearly interpolates between adjacent lookup-table points.
@@ -232,15 +232,15 @@ $$
 For initial speed `V0`, heading `ψ`, and the calculator's pitch/dive input `θ`, the initial velocity is resolved into DCS axes:
 
 $$
- v_x=V_0\cos(-\theta)\sin\psi
+v_x=V_0\cos(-\theta)\sin\psi
 $$
 
 $$
- v_y=V_0\sin(-\theta)
+v_y=V_0\sin(-\theta)
 $$
 
 $$
- v_z=V_0\cos(-\theta)\cos\psi
+v_z=V_0\cos(-\theta)\cos\psi
 $$
 
 Angles are converted from degrees to radians. The negative pitch sign is intentional: it converts the screen input convention into the DCS vertical-velocity convention.
@@ -248,7 +248,7 @@ Angles are converted from degrees to radians. The negative pitch sign is intenti
 Each wind layer is converted from speed and direction into horizontal components:
 
 $$
- w_x=W\sin\phi,\qquad w_z=W\cos\phi
+w_x=W\sin\phi,\qquad w_z=W\cos\phi
 $$
 
 The four layers are sorted by altitude. The calculator uses linear interpolation between the upper layers, logarithmic interpolation between 500 m and 10 m, and a linear reduction toward zero below 10 m. This is an approximation of the near-surface wind profile, not a full atmospheric boundary-layer model.
@@ -268,7 +268,7 @@ $$
 The solver then calculates local temperature, density, speed of sound, Mach, and interpolated `Kd`:
 
 $$
- a_D=K_d(M)\rho V_{rel}^2
+a_D=K_d(M)\rho V_{rel}^2
 $$
 
 Drag acts opposite the relative-airflow vector. The acceleration is:
@@ -280,15 +280,15 @@ $$
 Component form:
 
 $$
- a_x=-a_D\frac{v_x-w_x}{V_{rel}}
+a_x=-a_D\frac{v_x-w_x}{V_{rel}}
 $$
 
 $$
- a_y=-a_D\frac{v_y}{V_{rel}}-g
+a_y=-a_D\frac{v_y}{V_{rel}}-g
 $$
 
 $$
- a_z=-a_D\frac{v_z-w_z}{V_{rel}}
+a_z=-a_D\frac{v_z-w_z}{V_{rel}}
 $$
 
 This is why wind is not simply added as a fixed sideways distance: wind changes the relative airflow, which changes both the magnitude and direction of drag throughout the flight.
@@ -320,19 +320,19 @@ $$
 For `s' = f(t,s)`, one RK4 step is:
 
 $$
- k_1=f(t,s)
+k_1=f(t,s)
 $$
 
 $$
- k_2=f\left(t+\frac{\Delta t}{2},s+\frac{k_1\Delta t}{2}\right)
+k_2=f\left(t+\frac{\Delta t}{2},s+\frac{k_1\Delta t}{2}\right)
 $$
 
 $$
- k_3=f\left(t+\frac{\Delta t}{2},s+\frac{k_2\Delta t}{2}\right)
+k_3=f\left(t+\frac{\Delta t}{2},s+\frac{k_2\Delta t}{2}\right)
 $$
 
 $$
- k_4=f(t+\Delta t,s+k_3\Delta t)
+k_4=f(t+\Delta t,s+k_3\Delta t)
 $$
 
 $$
@@ -352,13 +352,13 @@ Suppose one component currently has:
 The first RK4 position slope is:
 
 $$
- k_{1,x}=v_x=200
+k_{1,x}=v_x=200
 $$
 
 The first half-step position estimate is:
 
 $$
- x_2=x+\frac{200\times0.01}{2}=x+1\ \mathrm{m}
+x_2=x+\frac{200\times0.01}{2}=x+1\ \mathrm{m}
 $$
 
 The solver performs the same calculation for all six state variables, recalculates acceleration at each intermediate state, and then applies the RK4 weighted average.
@@ -376,7 +376,7 @@ $$
 The angular difference between the displacement vector and the entered heading is:
 
 $$
-\Delta\psi=\operatorname{atan2}(x,z)-\psi
+\Delta\psi=atan2(x,z)-\psi
 $$
 
 The calculator resolves the displacement into forward range and cross-track drift:
@@ -491,7 +491,3 @@ The browser application is client-side and requires `docs/weapon_drag_database.j
 ├── uv.lock
 └── README.md
 ```
-
-## License and contributions
-
-Contributions that improve telemetry quality, calibration validation, numerical stability, documentation, or test coverage are welcome through pull requests.
