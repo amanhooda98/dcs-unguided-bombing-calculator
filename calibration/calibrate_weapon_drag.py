@@ -76,7 +76,11 @@ print("\n==================================================")
 print("📊 GENERATING DATABASE (LUT + DISPERSION)")
 print("==================================================")
 
-database = {}
+if master_json_path.exists():
+    with open(master_json_path, 'r') as f:
+        database = json.load(f)
+else:
+    database = {}
 
 unique_weapons = df['Weapon'].unique()
 
